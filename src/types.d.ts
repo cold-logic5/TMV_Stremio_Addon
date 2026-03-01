@@ -6,6 +6,7 @@ declare module 'stremio-addon-sdk' {
         defineMetaHandler(handler: (args: any) => Promise<any>): void;
         getInterface(): any;
     }
+    export function getRouter(interfaceRes: any): any;
     export const serveHTTP: any;
     export type Manifest = any;
     export type Stream = any;

@@ -19,8 +19,10 @@ import { config } from './services/config';
 
 import { runRefreshOnce } from './scheduler/job'; // Import the direct run function
 
-// Create the Stremio handler
-const stremioHandler = serveHTTP(addonInterface);
+import { getRouter } from 'stremio-addon-sdk';
+
+// Create the Stremio Express router
+const stremioRouter = getRouter(addonInterface);
 
 const server = http.createServer((req, res) => {
   // 1. Intercept the /scrape route
@@ -35,8 +37,12 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 2. Otherwise, let Stremio handle the request
-  stremioHandler(req, res);
+  // 2. Otherwise, let Stremio (Express router) handle the request
+  // We need to simulate express req/res handling for the router
+  stremioRouter(req as any, res as any, () => {
+    res.statusCode = 404;
+    res.end('Not found');
+  });
 });
 
 server.listen(config.port, () => {
