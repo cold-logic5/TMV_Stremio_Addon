@@ -22,7 +22,7 @@ const MANIFEST: Manifest = {
 
 const builder = new addonBuilder(MANIFEST);
 
-builder.defineCatalogHandler(async (args) => {
+builder.defineCatalogHandler(async (args: any) => {
   if (args.type !== 'movie' || args.id !== 'tamilmv-recent') {
     return { metas: [] };
   }
@@ -51,7 +51,7 @@ builder.defineCatalogHandler(async (args) => {
   return { metas };
 });
 
-builder.defineStreamHandler(async (args) => {
+builder.defineStreamHandler(async (args: any) => {
   const movie = await getMovieById(args.id);
   // console.log('[Stremio] Stream handler -> args:', args);
   // console.log('[Stremio] Stream handler -> id:', args.id);
@@ -69,7 +69,7 @@ builder.defineStreamHandler(async (args) => {
   return { streams };
 });
 
-builder.defineMetaHandler(async (args) => {
+builder.defineMetaHandler(async (args: any) => {
   // For 'tt' IDs, Stremio's default Cinemeta addon will handle it automatically.
   if (args.type === 'movie' && args.id.startsWith('tamilmv-')) {
     const movie = await getMovieById(args.id);

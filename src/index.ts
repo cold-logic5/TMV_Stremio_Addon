@@ -31,7 +31,7 @@ const server = http.createServer((req, res) => {
 
     // Run the scrape in the background without making the HTTP request wait
     console.log('External scrape triggered!');
-    runRefreshOnce().catch(err => console.error('Scrape failed:', err));
+    runRefreshOnce().catch((err: any) => console.error('Scrape failed:', err));
     return;
   }
 

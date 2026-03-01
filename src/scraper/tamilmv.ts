@@ -59,7 +59,7 @@ const parseTitleAndYear = (
     titleGuess = rawTitle.substring(0, yearMatch.index);
   } else {
     // Fallback if no year: split by dash or bracket
-    titleGuess = rawTitle.split(/-|\[/)[0];
+    titleGuess = rawTitle.split(/-|\[/)[0] || rawTitle;
   }
 
   // Remove trailing parentheses, brackets, or extra spaces
