@@ -1,4 +1,4 @@
-# Stremio Addon Tamil
+# Stremio Addon TMV
 
 A Stremio addon for Tamil movies and content, built with Node.js and TypeScript. It features a web scraper, IMDb integration, and Redis caching.
 

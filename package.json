@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "prestart": "npm run build",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "start": "node dist/index.js",
     "scrape:once": "ts-node-dev --transpile-only src/scheduler/job.ts",
@@ -15,16 +16,16 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@types/node": "^25.3.1",
     "axios": "^1.13.5",
     "cheerio": "^1.2.0",
     "dotenv": "^17.3.1",
     "ioredis": "^5.9.3",
     "node-cron": "^4.2.1",
-    "stremio-addon-sdk": "^1.6.10"
+    "stremio-addon-sdk": "^1.6.10",
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "@types/node": "^25.3.1",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^5.9.3"
+    "ts-node-dev": "^2.0.0"
   }
 }
