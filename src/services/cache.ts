@@ -5,6 +5,8 @@ import { config } from './config';
 export const redis = new Redis(config.redisUrl, {
   tls: config.redisUrl.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
   family: 0, // Helps with IPv6 resolution for upstash
+  connectTimeout: 5000, // Fail if it takes more than 5 seconds to connect
+  maxRetriesPerRequest: 3, // Don't hang forever
 });
 
 const MOVIE_KEY_PREFIX = 'tamilmv:movie:';
