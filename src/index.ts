@@ -20,31 +20,28 @@ import { config } from './services/config';
 import { runRefreshOnce } from './scheduler/job'; // Import the direct run function
 
 import { getRouter } from 'stremio-addon-sdk';
+import express, { Request, Response } from 'express';
 
-// Create the Stremio Express router
-const stremioRouter = getRouter(addonInterface);
+const app = express();
 
-const server = http.createServer((req, res) => {
-  // 1. Intercept the /scrape route
-  // We use a query parameter secret to prevent abuse
-  if (req.url === '/scrape?secret=MY_SUPER_SECRET_KEY') {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Scrape triggered in the background.\n');
+// 1. Intercept the /scrape route
+// We use a query parameter secret to prevent abuse
+app.get('/scrape', (req: Request, res: Response) => {
+  if (req.query.secret === 'MY_SUPER_SECRET_KEY') {
+    res.status(200).send('Scrape triggered in the background.\n');
 
     // Run the scrape in the background without making the HTTP request wait
     console.log('External scrape triggered!');
     runRefreshOnce().catch((err: any) => console.error('Scrape failed:', err));
-    return;
+  } else {
+    res.status(401).send('Unauthorized');
   }
-
-  // 2. Otherwise, let Stremio (Express router) handle the request
-  // We need to simulate express req/res handling for the router
-  stremioRouter(req as any, res as any, () => {
-    res.statusCode = 404;
-    res.end('Not found');
-  });
 });
 
-server.listen(config.port, () => {
+// 2. Otherwise, let Stremio (Express router) handle the request
+const stremioRouter = getRouter(addonInterface);
+app.use(stremioRouter);
+
+app.listen(config.port, () => {
   console.log(`TamilMV Stremio addon running on http://localhost:${config.port}/manifest.json`);
 });

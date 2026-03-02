@@ -23,12 +23,14 @@
     "axios": "^1.13.5",
     "cheerio": "^1.2.0",
     "dotenv": "^17.3.1",
+    "express": "^5.2.1",
     "ioredis": "^5.9.3",
     "node-cron": "^4.2.1",
     "stremio-addon-sdk": "^1.6.10",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "ts-node-dev": "^2.0.0"
   }
 }
