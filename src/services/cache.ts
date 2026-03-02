@@ -2,7 +2,10 @@ import Redis from 'ioredis';
 import { EnrichedMovie } from '../models/movie';
 import { config } from './config';
 
-export const redis = new Redis(config.redisUrl);
+export const redis = new Redis(config.redisUrl, {
+  tls: config.redisUrl.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
+  family: 0, // Helps with IPv6 resolution for upstash
+});
 
 const MOVIE_KEY_PREFIX = 'tamilmv:movie:';
 const MOVIE_LIST_KEY = 'tamilmv:movies:list';

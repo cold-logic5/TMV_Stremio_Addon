@@ -12,10 +12,10 @@ const requiredEnv = (key: string, fallback?: string): string => {
 
 export const config = {
   port: parseInt(process.env.PORT ?? '7000', 10),
-  redisUrl: requiredEnv('REDIS_URL', 'redis://127.0.0.1:6379'),
+  redisUrl: requiredEnv('REDIS_URL'),
   imdbApiKey: process.env.IMDB_API_KEY ?? '',
   cinemataApiKey: process.env.CINEMATA_API_KEY ?? '',
-  tamilmvBaseUrl: process.env.TAMILMV_BASE_URL ?? 'https://www.tamilmv.vin',
+  tamilmvBaseUrl: process.env.TAMILMV_BASE_URL ?? 'https://www.1tamilmv.gs',
   dailyCron: process.env.DAILY_CRON ?? '0 3 * * *',
 };
 
