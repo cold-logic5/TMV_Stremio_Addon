@@ -21,24 +21,46 @@ export async function saveMovies(movies: EnrichedMovie[]): Promise<void> {
   // eslint-disable-next-line no-console
   console.log('[Redis] Saving movies count:', movies.length);
 
-  const pipeline = redis.pipeline();
-  const ids: string[] = [];
+  const newIds: string[] = [];
+  const setPipeline = redis.pipeline();
 
   for (const movie of movies) {
     const id = getExternalId(movie);
+    // eslint-disable-next-line no-console
     console.log('[Redis] saveMovies -> id:', id);
-    ids.push(id);
-    pipeline.set(getMovieKey(id), JSON.stringify(movie));
+    newIds.push(id);
+    setPipeline.set(getMovieKey(id), JSON.stringify(movie));
+  }
+  await setPipeline.exec();
+
+  // Get current list of IDs
+  const existingIds = await redis.lrange(MOVIE_LIST_KEY, 0, -1);
+
+  // Merge new IDs at the front, then existing ones, and deduplicate
+  const uniqueIds = Array.from(new Set([...newIds, ...existingIds]));
+
+  // Keep only up to 1500 items
+  const MAX_ENTRIES = 1500;
+  const idsToKeep = uniqueIds.slice(0, MAX_ENTRIES);
+  const idsToRemove = uniqueIds.slice(MAX_ENTRIES);
+
+  // Update the master list and remove old data
+  const updatePipeline = redis.pipeline();
+
+  updatePipeline.del(MOVIE_LIST_KEY);
+  if (idsToKeep.length > 0) {
+    updatePipeline.rpush(MOVIE_LIST_KEY, ...idsToKeep);
   }
 
-  pipeline.del(MOVIE_LIST_KEY);
-  if (ids.length) {
-    pipeline.rpush(MOVIE_LIST_KEY, ...ids);
+  if (idsToRemove.length > 0) {
+    const keysToRemove = idsToRemove.map(getMovieKey);
+    updatePipeline.del(...keysToRemove);
   }
 
-  await pipeline.exec();
+  await updatePipeline.exec();
+
   // eslint-disable-next-line no-console
-  console.log('[Redis] Saved movie IDs to list:', ids.length);
+  console.log(`[Redis] Saved ${idsToKeep.length} movie IDs to list. Evicted ${idsToRemove.length} old movies.`);
 }
 
 export async function listMovieIds(): Promise<string[]> {
