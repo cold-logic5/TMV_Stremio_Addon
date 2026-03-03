@@ -5,8 +5,9 @@ import { EnrichedMovie } from '../models/movie';
 const MANIFEST: Manifest = {
   id: 'org.tamilmv.recent',
   version: '1.0.0',
-  name: 'TamilMV Recent Movies',
-  description: 'Recently updated TamilMV movies with multi-quality magnet streams.',
+  name: 'InMax',
+  description: 'Recently updated movies from TamilMV with multi-quality streams.',
+  logo: 'https://freeimage.host/i/inmax-logo.qBunX1f',
   catalogs: [
     {
       type: 'movie',
@@ -48,7 +49,12 @@ builder.defineCatalogHandler(async (args: any) => {
     imdbRating: m.imdbRating,
   }));
 
-  return { metas };
+  return {
+    metas,
+    cacheMaxAge: 21600,       // Tells Stremio: "Only cache this for 6 hour (3600 seconds)"
+    staleRevalidate: 10800,   // Tells Stremio: "Check for updates in the background after 3 hours"
+    staleError: 21600         // Tells Stremio: "If my server crashes, use the old list for up to 6 hour"
+  };
 });
 
 builder.defineStreamHandler(async (args: any) => {
