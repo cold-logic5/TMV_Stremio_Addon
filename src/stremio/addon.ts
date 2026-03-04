@@ -19,6 +19,10 @@ const MANIFEST: Manifest = {
   resources: ['catalog', 'stream', 'meta'],
   types: ['movie'],
   idPrefixes: ['tt', 'tamilmv-'],
+  stremioAddonsConfig: {
+    "issuer": "https://stremio-addons.net",
+    "signature": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..cRYD4CgiXYy97pB2a10sug.EGnamjOef66h3f9rFBdTarLsvequuRlT10-0tFIGqPRXiMUv7n_CY1ehgfS3nPN2xTLXwY1SlXehsjFh0PsCl6hN6Jz_BXc3gvtvB3TotC8GUgIyjiD0E3iPr4LK2eD1.Ht5wJLt9h-WFNnG2LUUOtw"
+  }
 };
 
 const builder = new addonBuilder(MANIFEST);
