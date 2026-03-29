@@ -2,6 +2,8 @@ export interface ScrapedQuality {
   quality: '2160p' | '1080p' | '720p' | '480p' | string;
   type: 'magnet';
   url: string;
+  seeders?: number;
+  leechers?: number;
 }
 
 export interface ScrapedMovie {

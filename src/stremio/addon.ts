@@ -4,7 +4,7 @@ import { EnrichedMovie } from '../models/movie';
 
 const MANIFEST: Manifest = {
   id: 'org.tamilmv.recent',
-  version: '1.0.0',
+  version: '1.0.1',
   name: 'InMax',
   description: 'Recently updated movies from TamilMV with multi-quality streams.',
   logo: 'https://cold-logic5.github.io/TMV_Stremio_Addon_img/InMax%20Logo4.png',
@@ -68,13 +68,16 @@ builder.defineStreamHandler(async (args: any) => {
   // console.log('[Stremio] Stream handler -> movie:', movie?.name);
   if (!movie) return { streams: [] };
 
-  const streams: Stream[] = movie.qualities.map((q) => ({
-    title: `TamilMV ${q.quality}`,
-    url: q.url,
-    behaviorHints: {
-      bingeGroup: 'tamilmv',
-    },
-  }));
+  const streams: Stream[] = movie.qualities.map((q) => {
+    const health = q.seeders !== undefined ? `\n👤 ${q.seeders} 👥 ${q.leechers || 0}` : '';
+    return {
+      title: `TamilMV ${q.quality}${health}`,
+      url: q.url,
+      behaviorHints: {
+        bingeGroup: 'tamilmv',
+      },
+    };
+  });
 
   return { streams };
 });

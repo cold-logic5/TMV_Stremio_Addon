@@ -3,15 +3,35 @@ import { scrapeTamilMV } from '../scraper/tamilmv';
 import { enrichMoviesWithImdb } from '../services/imdb';
 import { saveMovies } from '../services/cache';
 import { config } from '../services/config';
+import { getBatchTorrentHealth } from '../services/torrent';
 
 export async function runRefreshOnce(): Promise<void> {
     const scraped = await scrapeTamilMV();
-    // Limit for testing: only keep the first 10 scraped movies
-    // const limited = scraped.slice(0, 10);
     // eslint-disable-next-line no-console
     console.log(`TamilMV scraped count: ${scraped.length}`);
 
     const enriched = await enrichMoviesWithImdb(scraped);
+
+    // Fetch torrent health for all qualities of all movies
+    // eslint-disable-next-line no-console
+    console.log('[Scheduler] Fetching torrent health for all movies...');
+    for (let i = 0; i < enriched.length; i++) {
+        const movie = enriched[i]!;
+        if (i % 10 === 0) {
+            // eslint-disable-next-line no-console
+            console.log(`[Scheduler] Progress: ${i}/${enriched.length} movies processed...`);
+        }
+        await getBatchTorrentHealth(
+            movie.qualities,
+            (q) => q.url,
+            (q, health) => {
+                q.seeders = health.seeds;
+                q.leechers = health.leechers;
+            },
+            5
+        );
+    }
+
     await saveMovies(enriched);
     // eslint-disable-next-line no-console
     console.log(`TamilMV enriched & saved count: ${enriched.length}`);
