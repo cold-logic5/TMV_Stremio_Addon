@@ -89,7 +89,7 @@ export async function enrichMoviesWithImdb(scraped: ScrapedMovie[]): Promise<Enr
         const meta = await searchCinemeta(cleanName, movie.yearGuess);
         if (meta) {
           const score = similarity(cleanName, meta.name);
-          if (score < 0.3) {
+          if (score < 0.4) {
             enriched = {
               ...enriched,
               // imdbId: meta.id,
@@ -104,29 +104,29 @@ export async function enrichMoviesWithImdb(scraped: ScrapedMovie[]): Promise<Enr
               score,
             });
           } else {
-          enriched = {
-            ...enriched,
-            imdbId: meta.id,
-            id: movie.id,
-            // name: meta.name ?? movie.titleGuess ?? movie.rawTitle,
-            name: movie.rawTitle,
-            year: meta.year ?? movie.yearGuess,
-            poster: meta.poster ?? enriched.poster,
-            thumbnail: meta.poster ?? enriched.thumbnail,
-            genres: meta.genres ?? enriched.genres,
-            description: meta.description ?? enriched.description,
-            imdbRating: meta.imdbRating ?? enriched.imdbRating,
-          };
-          // eslint-disable-next-line no-console
-          console.log('[Cinemeta] Enriched movie:', {
-            scrapedTitle: movie.rawTitle,
-            cleanName,
-            imdbId: enriched.imdbId,
-            // id: enriched.id,
-            name: enriched.name,
-            year: enriched.year,
-            similarity: score,
-          });
+            enriched = {
+              ...enriched,
+              imdbId: meta.id,
+              id: movie.id,
+              // name: meta.name ?? movie.titleGuess ?? movie.rawTitle,
+              name: movie.rawTitle,
+              year: meta.year ?? movie.yearGuess,
+              poster: meta.poster ?? enriched.poster,
+              thumbnail: meta.poster ?? enriched.thumbnail,
+              genres: meta.genres ?? enriched.genres,
+              description: meta.description ?? enriched.description,
+              imdbRating: meta.imdbRating ?? enriched.imdbRating,
+            };
+            // eslint-disable-next-line no-console
+            console.log('[Cinemeta] Enriched movie:', {
+              scrapedTitle: movie.rawTitle,
+              cleanName,
+              imdbId: enriched.imdbId,
+              // id: enriched.id,
+              name: enriched.name,
+              year: enriched.year,
+              similarity: score,
+            });
           }
         } else {
           // eslint-disable-next-line no-console

@@ -7,7 +7,7 @@ const MANIFEST: Manifest = {
   version: '1.0.0',
   name: 'InMax',
   description: 'Recently updated movies from TamilMV with multi-quality streams.',
-  logo: 'https://cold-logic5.github.io/TMV_Stremio_Addon_img/InMax%20Logo1.png',
+  logo: 'https://cold-logic5.github.io/TMV_Stremio_Addon_img/InMax%20Logo4.png',
   catalogs: [
     {
       type: 'movie',
