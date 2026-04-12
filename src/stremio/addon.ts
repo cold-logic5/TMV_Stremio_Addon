@@ -4,15 +4,15 @@ import { EnrichedMovie } from '../models/movie';
 
 const MANIFEST: Manifest = {
   id: 'org.tamilmv.recent',
-  version: '1.0.1',
+  version: '1.0.3',
   name: 'InMax',
   description: 'Recently updated movies from TamilMV with multi-quality streams.',
   logo: 'https://cold-logic5.github.io/TMV_Stremio_Addon_img/InMax%20Logo4.png',
   catalogs: [
     {
       type: 'movie',
-      id: 'tamilmv-recent',
-      name: 'TamilMV Recent',
+      id: 'tamilmv-now',
+      name: 'Tamilmv Recent',
       extra: [{ name: 'skip', isRequired: false }, { name: 'limit', isRequired: false }],
     },
   ],
@@ -28,7 +28,7 @@ const MANIFEST: Manifest = {
 const builder = new addonBuilder(MANIFEST);
 
 builder.defineCatalogHandler(async (args: any) => {
-  if (args.type !== 'movie' || args.id !== 'tamilmv-recent') {
+  if (args.type !== 'movie' || args.id !== 'tamilmv-now') {
     return { metas: [] };
   }
 
@@ -38,6 +38,11 @@ builder.defineCatalogHandler(async (args: any) => {
   const ids = await listMovieIds();
   const slice = ids.slice(skip, skip + limit);
   const movies = await getMoviesByIds(slice);
+
+  // VIBRANT LOG FOR VISIBILITY
+  console.log('********************************************');
+  console.log(`🚀 STREMIO IS REQUESTING ${movies.length} MOVIES`);
+  console.log('********************************************');
 
   const metas = movies.map((m: EnrichedMovie) => ({
     id: m.imdbId || `tamilmv-${m.id}`,
@@ -55,24 +60,39 @@ builder.defineCatalogHandler(async (args: any) => {
 
   return {
     metas,
-    cacheMaxAge: 21600,       // Tells Stremio: "Only cache this for 6 hour (3600 seconds)"
-    staleRevalidate: 10800,   // Tells Stremio: "Check for updates in the background after 3 hours"
-    staleError: 21600         // Tells Stremio: "If my server crashes, use the old list for up to 6 hour"
+    cacheMaxAge: 60,          // Refresh every minute
+    staleRevalidate: 30,      // Check for updates every 30 seconds
+    staleError: 3600          // Use old data for 1 hour if server is down
   };
 });
 
+// High-performance public trackers to speed up peer discovery
+const BEST_TRACKERS = [
+  'udp://tracker.openbittorrent.com:6969/announce',
+  'udp://tracker.opentrackr.org:1337/announce',
+  'udp://open.stealth.si:80/announce',
+  'udp://exodus.desync.com:6969/announce',
+  'udp://tracker.torrent.eu.org:451/announce',
+  'udp://tracker.moeking.me:6969/announce'
+];
+
 builder.defineStreamHandler(async (args: any) => {
   const movie = await getMovieById(args.id);
-  // console.log('[Stremio] Stream handler -> args:', args);
-  // console.log('[Stremio] Stream handler -> id:', args.id);
-  // console.log('[Stremio] Stream handler -> movie:', movie?.name);
   if (!movie) return { streams: [] };
 
   const streams: Stream[] = movie.qualities.map((q) => {
     const health = q.seeders !== undefined ? `\n👤 ${q.seeders} 👥 ${q.leechers || 0}` : '';
+    
+    // Inject trackers into the magnet links for faster startup
+    let finalUrl = q.url;
+    if (finalUrl.startsWith('magnet:')) {
+      const trackerString = BEST_TRACKERS.map(tr => `&tr=${encodeURIComponent(tr)}`).join('');
+      finalUrl += trackerString;
+    }
+
     return {
       title: `TamilMV ${q.quality}${health}`,
-      url: q.url,
+      url: finalUrl,
       behaviorHints: {
         bingeGroup: 'tamilmv',
       },

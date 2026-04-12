@@ -26,41 +26,37 @@ export async function saveMovies(movies: EnrichedMovie[]): Promise<void> {
 
   for (const movie of movies) {
     const id = getExternalId(movie);
-    // eslint-disable-next-line no-console
-    console.log('[Redis] saveMovies -> id:', id);
     newIds.push(id);
     setPipeline.set(getMovieKey(id), JSON.stringify(movie));
   }
   await setPipeline.exec();
 
-  // Get current list of IDs
+  // Get current list of IDs to identify what needs to be removed
   const existingIds = await redis.lrange(MOVIE_LIST_KEY, 0, -1);
 
-  // Merge new IDs at the front, then existing ones, and deduplicate
-  const uniqueIds = Array.from(new Set([...newIds, ...existingIds]));
+  // Find IDs that are in the old list but NOT in the new batch
+  const newIdsSet = new Set(newIds);
+  const idsToRemove = existingIds.filter(id => !newIdsSet.has(id));
 
-  // Keep only up to 1500 items
-  const MAX_ENTRIES = 1500;
-  const idsToKeep = uniqueIds.slice(0, MAX_ENTRIES);
-  const idsToRemove = uniqueIds.slice(MAX_ENTRIES);
-
-  // Update the master list and remove old data
+  // Update the master list: replace entirely with the new 200
   const updatePipeline = redis.pipeline();
 
   updatePipeline.del(MOVIE_LIST_KEY);
-  if (idsToKeep.length > 0) {
-    updatePipeline.rpush(MOVIE_LIST_KEY, ...idsToKeep);
+  if (newIds.length > 0) {
+    updatePipeline.rpush(MOVIE_LIST_KEY, ...newIds);
   }
 
+  // Delete individual movie data for evicted items to keep cache clean
   if (idsToRemove.length > 0) {
     const keysToRemove = idsToRemove.map(getMovieKey);
+    // Batch delete in chunks if needed, but for 1500 it's fine
     updatePipeline.del(...keysToRemove);
   }
 
   await updatePipeline.exec();
 
   // eslint-disable-next-line no-console
-  console.log(`[Redis] Saved ${idsToKeep.length} movie IDs to list. Evicted ${idsToRemove.length} old movies.`);
+  console.log(`[Redis] Replaced list with ${newIds.length} current movies. Evicted ${idsToRemove.length} obsolete items.`);
 }
 
 export async function listMovieIds(): Promise<string[]> {

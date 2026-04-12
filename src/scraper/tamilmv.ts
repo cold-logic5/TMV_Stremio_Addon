@@ -150,9 +150,9 @@ export async function scrapeTamilMV(): Promise<ScrapedMovie[]> {
 
     movies.push(movie);
 
-    // For testing: only collect the first 10 movies from homepage
-    if (movies.length >= 1500) {
-      console.log('[TamilMV] Reached homepage scrape limit of 1500 movies, stopping.');
+    // Limit scrape to the first 200 movies as requested
+    if (movies.length >= 200) {
+      console.log('[TamilMV] Reached homepage scrape limit of 200 movies, stopping.');
       break;
     }
   }

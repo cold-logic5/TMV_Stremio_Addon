@@ -38,6 +38,12 @@ app.get('/scrape', (req: Request, res: Response) => {
   }
 });
 
+// Log all incoming requests to help debug Stremio connection
+app.use((req, res, next) => {
+  console.log(`[HTTP] ${req.method} ${req.url}`);
+  next();
+});
+
 // 2. Otherwise, let Stremio (Express router) handle the request
 const stremioRouter = getRouter(addonInterface);
 app.use(stremioRouter);
