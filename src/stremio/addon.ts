@@ -82,7 +82,7 @@ builder.defineStreamHandler(async (args: any) => {
 
   const streams: Stream[] = movie.qualities.map((q) => {
     const health = q.seeders !== undefined ? `\n👤 ${q.seeders} 👥 ${q.leechers || 0}` : '';
-    
+
     // Inject trackers into the magnet links for faster startup
     let finalUrl = q.url;
     if (finalUrl.startsWith('magnet:')) {
