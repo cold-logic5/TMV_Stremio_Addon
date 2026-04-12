@@ -4,7 +4,7 @@ import { EnrichedMovie } from '../models/movie';
 
 const MANIFEST: Manifest = {
   id: 'org.tamilmv.recent',
-  version: '1.0.3',
+  version: '1.1.0',
   name: 'InMax',
   description: 'Recently updated movies from TamilMV with multi-quality streams.',
   logo: 'https://cold-logic5.github.io/TMV_Stremio_Addon_img/InMax%20Logo4.png',
