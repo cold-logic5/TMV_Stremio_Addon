@@ -14,6 +14,7 @@ export interface ScrapedMovie {
   pageUrl: string;
   qualities: ScrapedQuality[];
   rawText?: string;
+  languages?: string[];
 }
 
 export interface EnrichedMovie extends ScrapedMovie {

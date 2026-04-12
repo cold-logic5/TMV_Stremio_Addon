@@ -68,6 +68,27 @@ const parseTitleAndYear = (
   return { titleGuess, yearGuess };
 };
 
+const detectLanguages = (rawText: string): string[] => {
+  const found: string[] = [];
+
+  if (/Tamil/i.test(rawText)) found.push('Tamil');
+  if (/Malayalam/i.test(rawText)) found.push('Malayalam');
+  if (/Telugu/i.test(rawText)) found.push('Telugu');
+  if (/Kannada|Kanada/i.test(rawText)) found.push('Kannada');
+  if (/Hindi/i.test(rawText)) found.push('Hindi');
+
+  // If there are multiple languages explicitly mentioned, or "Multi/Dual Audio", categorize as Multi-Lang
+  if (/(multi|dual)[\s-]*audio/i.test(rawText)) {
+    if (!found.includes('Multi-Lang')) found.push('Multi-Lang');
+  }
+
+  if (found.length > 1 && !found.includes('Multi-Lang')) {
+    found.push('Multi-Lang');
+  }
+
+  return found;
+};
+
 const makeId = (rawTitle: string): string =>
   crypto.createHash('md5').update(rawTitle.toLowerCase()).digest('hex');
 
@@ -139,6 +160,7 @@ export async function scrapeTamilMV(): Promise<ScrapedMovie[]> {
       pageUrl,
       qualities: [], // We will populate this in the next step
       rawText,
+      languages: detectLanguages(rawText),
     };
 
     // eslint-disable-next-line no-console
@@ -146,6 +168,7 @@ export async function scrapeTamilMV(): Promise<ScrapedMovie[]> {
       id: movie.id,
       rawTitle: movie.rawTitle,
       pageUrl: movie.pageUrl,
+      languages: movie.languages,
     });
 
     movies.push(movie);

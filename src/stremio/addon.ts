@@ -13,7 +13,13 @@ const MANIFEST: Manifest = {
       type: 'movie',
       id: 'tamilmv-now',
       name: 'Tamilmv Recent',
-      extra: [{ name: 'skip', isRequired: false }, { name: 'limit', isRequired: false }],
+      extra: [
+        { name: 'skip', isRequired: false },
+        { name: 'limit', isRequired: false },
+        // { name: 'genre', isRequired: false, options: ['All', 'Tamil', 'Malayalam', 'Telugu', 'Kannada', 'Hindi', 'Multi-Lang'] }
+        { name: 'genre', isRequired: false, options: ['Tamil', 'Malayalam', 'Telugu', 'Kannada', 'Hindi', 'Multi-Lang'] }
+
+      ],
     },
   ],
   resources: ['catalog', 'stream', 'meta'],
@@ -34,14 +40,23 @@ builder.defineCatalogHandler(async (args: any) => {
 
   const skip = Number(args.extra?.skip ?? 0);
   const limit = Number(args.extra?.limit ?? 50);
+  const genre = args.extra?.genre;
 
   const ids = await listMovieIds();
-  const slice = ids.slice(skip, skip + limit);
-  const movies = await getMoviesByIds(slice);
+  let movies = await getMoviesByIds(ids);
+
+  // if (genre && genre !== 'All') {
+  if (genre) {
+    movies = movies.filter(m => m.languages && m.languages.includes(genre));
+  }
+
+  const requestedCount = movies.length;
+  // Apply pagination after filtering
+  movies = movies.slice(skip, skip + limit);
 
   // VIBRANT LOG FOR VISIBILITY
   console.log('********************************************');
-  console.log(`🚀 STREMIO IS REQUESTING ${movies.length} MOVIES`);
+  console.log(`🚀 STREMIO IS REQUESTING ${movies.length} MOVIES (Genre: ${genre || 'All'} | Total found: ${requestedCount})`);
   console.log('********************************************');
 
   const metas = movies.map((m: EnrichedMovie) => ({
