@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: stremio-tamil
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: RENDER_EXTERNAL_URL
+        fromService:
+          name: stremio-tamil
+          type: web
+          property: host
+      - key: REDIS_URL
+        sync: false # Set this manually in Render dashboard from your Upstash URL
+      - key: TAMILMV_BASE_URL
+        value: https://www.1tamilmv.gs/
+      - key: DAILY_CRON
+        value: 0 3 * * *

@@ -38,15 +38,32 @@ app.get('/scrape', (req: Request, res: Response) => {
   }
 });
 
+// 2. Health check for Render.com
+app.get('/health', (req, res) => res.status(200).send('OK'));
+
 // Log all incoming requests to help debug Stremio connection
 app.use((req, res, next) => {
   console.log(`[HTTP] ${req.method} ${req.url}`);
   next();
 });
 
-// 2. Otherwise, let Stremio (Express router) handle the request
+// 3. Otherwise, let Stremio (Express router) handle the request
 const stremioRouter = getRouter(addonInterface);
 app.use(stremioRouter);
+
+// 4. Keep-Alive logic for Render's Free Tier
+const EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
+if (EXTERNAL_URL) {
+  const PING_INTERVAL = 10 * 60 * 1000; // 10 minutes
+  setInterval(() => {
+    import('axios').then(axios => {
+        axios.default.get(`${EXTERNAL_URL}/manifest.json`)
+          .then(() => console.log('[Keep-Alive] Pinged self successfully'))
+          .catch(err => console.error('[Keep-Alive] Self-ping failed:', err.message));
+    });
+  }, PING_INTERVAL);
+  console.log(`[Keep-Alive] Pinging self every 10 minutes at: ${EXTERNAL_URL}`);
+}
 
 app.listen(config.port, () => {
   console.log(`TamilMV Stremio addon running on http://localhost:${config.port}/manifest.json`);
