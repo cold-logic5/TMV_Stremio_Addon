@@ -105,8 +105,10 @@ builder.defineStreamHandler(async (args: any) => {
       finalUrl += trackerString;
     }
 
+    const languageName = q.languages && q.languages.length > 0 ? q.languages.join('/') : 'Unknown';
+
     return {
-      title: `TamilMV ${q.quality}${health}`,
+      title: `TamilMV ${languageName} ${q.quality}${health}`,
       url: finalUrl,
       behaviorHints: {
         bingeGroup: 'tamilmv',

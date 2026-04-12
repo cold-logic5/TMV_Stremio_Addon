@@ -24,10 +24,29 @@ export async function saveMovies(movies: EnrichedMovie[]): Promise<void> {
   const newIds: string[] = [];
   const setPipeline = redis.pipeline();
 
+  const movieMap = new Map<string, EnrichedMovie>();
+
   for (const movie of movies) {
     const id = getExternalId(movie);
+    if (movieMap.has(id)) {
+      const existing = movieMap.get(id)!;
+      existing.qualities.push(...movie.qualities);
+      
+      if (movie.languages) {
+        existing.languages = Array.from(new Set([...(existing.languages || []), ...movie.languages]));
+      }
+      
+      if (movie.rawText && existing.rawText !== movie.rawText) {
+        existing.rawText += '\n\n' + movie.rawText;
+      }
+    } else {
+      movieMap.set(id, movie);
+    }
+  }
+
+  for (const [id, mergedMovie] of movieMap.entries()) {
     newIds.push(id);
-    setPipeline.set(getMovieKey(id), JSON.stringify(movie));
+    setPipeline.set(getMovieKey(id), JSON.stringify(mergedMovie));
   }
   await setPipeline.exec();
 

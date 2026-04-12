@@ -4,6 +4,7 @@ export interface ScrapedQuality {
   url: string;
   seeders?: number;
   leechers?: number;
+  languages?: string[];
 }
 
 export interface ScrapedMovie {

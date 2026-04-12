@@ -89,8 +89,9 @@ const detectLanguages = (rawText: string): string[] => {
   return found;
 };
 
-const makeId = (rawTitle: string): string =>
-  crypto.createHash('md5').update(rawTitle.toLowerCase()).digest('hex');
+// Use the URL in the hash to ensure different versions (Tamil/Telugu) of the same movie have unique IDs
+const makeId = (rawTitle: string, url: string): string =>
+  crypto.createHash('md5').update(`${rawTitle.toLowerCase()}-${url}`).digest('hex');
 
 export async function fetchTamilMVHomepageHtml(): Promise<string> {
   // eslint-disable-next-line no-console
@@ -112,37 +113,39 @@ export async function scrapeTamilMV(): Promise<ScrapedMovie[]> {
   const html = await fetchTamilMVHomepageHtml();
   const movies: ScrapedMovie[] = [];
 
-  // The HTML structure separates entries with <br> tags. 
-  // Splitting by <br> gives us isolated strings containing one movie and one link each.
-  const chunks = html.split(/<br\s*\/?>/i);
+  // 1. Split the raw HTML into layout blocks. 
+  // By splitting on <br>, <p>, <div>, etc. BEFORE parsing DOM, we prevent multiple movies 
+  // inside the same tag from being merged into one giant string.
+  const chunks = html.split(/<br\s*\/?>|<\/?p[^>]*>|<\/?div[^>]*>|<\/?tr[^>]*>|<\/?li[^>]*>/i);
+
   // eslint-disable-next-line no-console
   console.log('[TamilMV] Chunk count:', chunks.length);
 
   for (const chunk of chunks) {
-    // Skip chunks that don't contain a forum topic link
     if (!chunk.includes('/index.php?/forums/topic/')) continue;
 
     const $chunk = loadHtml(chunk);
+
+    // In rare cases a single line without breaks has multiple links, we process the first.
+    // The previous split guarantees each movie is on its own line if formatted normally.
     const linkNode = $chunk('a[href*="/index.php?/forums/topic/"]').first();
 
     let pageUrl = linkNode.attr('href');
     if (!pageUrl) continue;
 
-    // Ensure the URL is absolute
+    // Ensure link is absolute
     if (!pageUrl.startsWith('http')) {
       pageUrl = `${config.tamilmvBaseUrl.replace(/\/+$/, '')}/${pageUrl.replace(/^\/+/, '')}`;
     }
 
-    // Getting text from the chunk automatically strips the HTML tags, leaving clean text
-    // Example: "Kshetrapati (2023) Kannada HD - [1080p & 720p - AVC...]"
+    // Since chunk is isolated, the text is exactly what belongs to this movie
     const rawText = $chunk.text().replace(/\s+/g, ' ').trim();
 
-    // Skip TV-season/episode range entries like "EP (05-08) and telegram links"
+    if (rawText.length < 10) continue;
+
     if (/\bS\d{2}\b/i.test(rawText) ||
       /EP\s*\(\d+(?:\s*-\s*\d+)?\)/i.test(rawText) ||
       /Telegram/i.test(rawText)) {
-      // eslint-disable-next-line no-console
-      console.log('[TamilMV] Skipping episode range entry:', rawText);
       continue;
     }
 
@@ -150,43 +153,37 @@ export async function scrapeTamilMV(): Promise<ScrapedMovie[]> {
     if (!titleGuess) continue;
 
     const rawTitle = `${titleGuess} ${yearGuess ? `(${yearGuess})` : ''}`.trim();
-    const id = makeId(rawTitle);
+    const id = makeId(rawTitle, pageUrl);
 
-    const movie: ScrapedMovie = {
-      id,
-      rawTitle,
-      titleGuess,
-      yearGuess,
-      pageUrl,
-      qualities: [], // We will populate this in the next step
-      rawText,
-      languages: detectLanguages(rawText),
-    };
+    if (!movies.find(m => m.pageUrl === pageUrl)) {
+      movies.push({
+        id,
+        rawTitle,
+        titleGuess,
+        yearGuess,
+        pageUrl,
+        qualities: [],
+        rawText,
+        languages: detectLanguages(rawText),
+      });
+    }
 
-    // eslint-disable-next-line no-console
-    console.log('[TamilMV] Scraped basic movie:', {
-      id: movie.id,
-      rawTitle: movie.rawTitle,
-      pageUrl: movie.pageUrl,
-      languages: movie.languages,
-    });
-
-    movies.push(movie);
-
-    // Limit scrape to the first 200 movies as requested
     if (movies.length >= 200) {
-      console.log('[TamilMV] Reached homepage scrape limit of 200 movies, stopping.');
+      console.log('[TamilMV] Reached limit of 200 movies, stopping scan.');
       break;
     }
   }
 
-  // Fetch magnets for all scraped movie pages
-  // Note: Using a for-of loop ensures we process them sequentially to avoid rate-limiting.
+  // eslint-disable-next-line no-console
+  console.log('[TamilMV] Processing magnets for', movies.length, 'movies');
+
   for (const movie of movies) {
     if (movie.pageUrl) {
       movie.qualities = await scrapeMoviePageForMagnets(movie.pageUrl);
+      // Assign the movie's languages to its individual streams
+      movie.qualities.forEach(q => q.languages = movie.languages);
       // eslint-disable-next-line no-console
-      console.log('[TamilMV] Magnets for movie:', movie.rawTitle, '->', movie.qualities.length);
+      console.log(`[TamilMV] Magnets for movie: ${movie.titleGuess} -> ${movie.qualities.length}`);
     }
   }
 
