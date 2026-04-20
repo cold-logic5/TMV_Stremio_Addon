@@ -12,6 +12,25 @@ const DEFAULT_TRACKERS = [
   'udp://tracker.openbittorrent.com:6969/announce',
   'udp://open.stealth.si:80/announce',
   'udp://tracker.opentrackr.org:1337/announce',
+  'http://91.217.91.21:3218/announce',
+  'udp://p4p.arenabg.com:1337/announce',
+  'http://pow7.com:80/announce',
+  'udp://tracker.tiny-vps.com:6969/announce',
+  'http://tracker.tvunderground.org.ru:3218/announce',
+  'udp://tracker.yoshi210.com:6969/announce',
+  'http://tracker2.itzmx.com:6961/announce',
+  'udp://151.80.120.114:2710/announce',
+  'udp://62.138.0.158:6969/announce',
+  'udp://9.rarbg.com:2790/announce',
+  'udp://9.rarbg.me:2720/announce',
+  'udp://9.rarbg.to:2740/announce',
+  'udp://tracker.coppersurfer.tk:6969/announce',
+  'udp://tracker.leechers-paradise.org:6969/announce',
+  'http://tracker.yoshi210.com:6969/announce',
+  'udp://tracker.pirateparty.gr:6969/announce',
+  'udp://open.demonii.si:1337/announce',
+  'udp://denis.stalker.upeer.me:6969/announce',
+  'http://t.nyaatracker.com:80/announce'
 ];
 
 /**
@@ -157,6 +176,60 @@ function scrapeUdpTracker(
   });
 }
 
+function getScrapeUrl(trackerUrl: string, infoHash: Buffer): string | null {
+  try {
+    const urlObj = new url.URL(trackerUrl);
+    const match = urlObj.pathname.lastIndexOf('announce');
+    if (match === -1) return null;
+
+    urlObj.pathname = urlObj.pathname.substring(0, match) + 'scrape' + urlObj.pathname.substring(match + 8);
+    
+    let result = '';
+    for (let i = 0; i < infoHash.length; i++) {
+        result += '%' + infoHash[i].toString(16).padStart(2, '0');
+    }
+    
+    return `${urlObj.toString()}?info_hash=${result}`;
+  } catch {
+    return null;
+  }
+}
+
+async function scrapeHttpTracker(
+  trackerUrl: string,
+  infoHash: Buffer,
+  timeout: number
+): Promise<TorrentHealth | null> {
+  const scrapeUrl = getScrapeUrl(trackerUrl, infoHash);
+  if (!scrapeUrl) return null;
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+
+    const response = await fetch(scrapeUrl, { signal: controller.signal });
+    clearTimeout(timer);
+
+    if (!response.ok) return null;
+
+    const buffer = await response.arrayBuffer();
+    const data = Buffer.from(buffer).toString('ascii');
+
+    const completeMatch = data.match(/8:completei(\d+)e/);
+    const incompleteMatch = data.match(/10:incompletei(\d+)e/);
+
+    if (completeMatch !== null || incompleteMatch !== null) {
+      return {
+        seeds: completeMatch ? parseInt(completeMatch[1], 10) : 0,
+        leechers: incompleteMatch ? parseInt(incompleteMatch[1], 10) : 0,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Fetches the number of seeders and leechers for a given magnet link.
  * Tries multiple trackers and returns the best (highest seeder count) result.
@@ -172,17 +245,24 @@ export async function getTorrentHealth(
 
   // Gather trackers from the magnet link + defaults
   const magnetTrackers = extractTrackers(magnetUrl);
-  const udpTrackers = [...magnetTrackers, ...DEFAULT_TRACKERS]
-    .filter(t => t.startsWith('udp://'))
-    .slice(0, 3); // Limit to 3 trackers for speed
+  // Deduplicate and filter for both udp and http
+  const validTrackers = [...new Set([...magnetTrackers, ...DEFAULT_TRACKERS])]
+    .filter(t => t.startsWith('udp://') || t.startsWith('http://'))
+    .slice(0, 10); // Limit to 10 trackers for better coverage
 
-  if (udpTrackers.length === 0) {
+  if (validTrackers.length === 0) {
     return { seeds: 0, leechers: 0 };
   }
 
   // Query all trackers in parallel, take the best result
   const results = await Promise.all(
-    udpTrackers.map(tracker => scrapeUdpTracker(tracker, infoHash, timeout))
+    validTrackers.map(tracker => {
+      if (tracker.startsWith('udp://')) {
+        return scrapeUdpTracker(tracker, infoHash, timeout);
+      } else {
+        return scrapeHttpTracker(tracker, infoHash, timeout);
+      }
+    })
   );
 
   let best: TorrentHealth = { seeds: 0, leechers: 0 };

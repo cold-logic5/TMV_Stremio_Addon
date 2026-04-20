@@ -88,7 +88,26 @@ const BEST_TRACKERS = [
   'udp://open.stealth.si:80/announce',
   'udp://exodus.desync.com:6969/announce',
   'udp://tracker.torrent.eu.org:451/announce',
-  'udp://tracker.moeking.me:6969/announce'
+  'udp://tracker.moeking.me:6969/announce',
+  'http://91.217.91.21:3218/announce',
+  'udp://p4p.arenabg.com:1337/announce',
+  'http://pow7.com:80/announce',
+  'udp://tracker.tiny-vps.com:6969/announce',
+  'http://tracker.tvunderground.org.ru:3218/announce',
+  'udp://tracker.yoshi210.com:6969/announce',
+  'http://tracker2.itzmx.com:6961/announce',
+  'udp://151.80.120.114:2710/announce',
+  'udp://62.138.0.158:6969/announce',
+  'udp://9.rarbg.com:2790/announce',
+  'udp://9.rarbg.me:2720/announce',
+  'udp://9.rarbg.to:2740/announce',
+  'udp://tracker.coppersurfer.tk:6969/announce',
+  'udp://tracker.leechers-paradise.org:6969/announce',
+  'http://tracker.yoshi210.com:6969/announce',
+  'udp://tracker.pirateparty.gr:6969/announce',
+  'udp://open.demonii.si:1337/announce',
+  'udp://denis.stalker.upeer.me:6969/announce',
+  'http://t.nyaatracker.com:80/announce'
 ];
 
 builder.defineStreamHandler(async (args: any) => {
