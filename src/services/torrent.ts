@@ -185,8 +185,8 @@ function getScrapeUrl(trackerUrl: string, infoHash: Buffer): string | null {
     urlObj.pathname = urlObj.pathname.substring(0, match) + 'scrape' + urlObj.pathname.substring(match + 8);
     
     let result = '';
-    for (let i = 0; i < infoHash.length; i++) {
-        result += '%' + infoHash[i].toString(16).padStart(2, '0');
+    for (const byte of infoHash) {
+      result += '%' + byte.toString(16).padStart(2, '0');
     }
     
     return `${urlObj.toString()}?info_hash=${result}`;
@@ -220,8 +220,8 @@ async function scrapeHttpTracker(
 
     if (completeMatch !== null || incompleteMatch !== null) {
       return {
-        seeds: completeMatch ? parseInt(completeMatch[1], 10) : 0,
-        leechers: incompleteMatch ? parseInt(incompleteMatch[1], 10) : 0,
+        seeds: completeMatch ? parseInt(completeMatch[1] ?? '0', 10) : 0,
+        leechers: incompleteMatch ? parseInt(incompleteMatch[1] ?? '0', 10) : 0,
       };
     }
     return null;
