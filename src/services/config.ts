@@ -15,7 +15,7 @@ export const config = {
   redisUrl: requiredEnv('REDIS_URL'),
   imdbApiKey: process.env.IMDB_API_KEY ?? '',
   cinemataApiKey: process.env.CINEMATA_API_KEY ?? '',
-  tamilmvBaseUrl: process.env.TAMILMV_BASE_URL ?? 'https://www.1tamilmv.gs',
+  tamilmvBaseUrl: process.env.TAMILMV_BASE_URL ?? 'https://www.1tamilmv.observer',
   dailyCron: process.env.DAILY_CRON ?? '0 3 * * *',
 };
 
