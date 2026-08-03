@@ -81,34 +81,51 @@ builder.defineCatalogHandler(async (args: any) => {
   };
 });
 
-// High-performance public trackers to speed up peer discovery
+// High-performance active public trackers to speed up peer discovery
 const BEST_TRACKERS = [
-  'udp://tracker.openbittorrent.com:6969/announce',
-  'udp://tracker.opentrackr.org:1337/announce',
+  'udp://tracker.publictracker.xyz:6969/announce',
+  'http://tracker.opentrackr.org:1337/announce',
+  'udp://open.demonii.com:1337/announce',
   'udp://open.stealth.si:80/announce',
-  'udp://exodus.desync.com:6969/announce',
+  'udp://tracker.wildkat.net:6969/announce',
+  'udp://tracker.qu.ax:6969/announce',
+  'udp://tracker.peerfect.org:6969/announce',
+  'udp://tracker.opentrackr.com:6969/announce',
+  'udp://tracker.opentorrent.top:6969/announce',
+  'udp://tracker.ilibr.org:6969/announce',
+  'udp://tracker.filemail.com:6969/announce',
+  'udp://tracker.ducks.party:1984/announce',
+  'udp://tracker.corpscorp.online:80/announce',
+  'udp://tracker.bittor.pw:1337/announce',
+  'udp://tracker.auctor.tv:6969/announce',
+  'udp://tracker.0x7c0.com:6969/announce',
+  'udp://tracker-udp.gbitt.info:80/announce',
+  'udp://tr4ck3r.duckdns.org:6969/announce',
+  'udp://torrentclub.online:54123/announce',
+  'udp://torrentclub.online:1984/announce',
+  'udp://tracker.opentrackr.org:1337/announce',
+  'udp://tracker.openbittorrent.com:6969/announce',
   'udp://tracker.torrent.eu.org:451/announce',
+  'udp://explodie.org:6969/announce',
+  'udp://tracker.filebase.online:6969/announce',
   'udp://tracker.moeking.me:6969/announce',
-  'http://91.217.91.21:3218/announce',
   'udp://p4p.arenabg.com:1337/announce',
-  'http://pow7.com:80/announce',
+  'udp://opentracker.i2p.rocks:6969/announce',
   'udp://tracker.tiny-vps.com:6969/announce',
-  'http://tracker.tvunderground.org.ru:3218/announce',
-  'udp://tracker.yoshi210.com:6969/announce',
-  'http://tracker2.itzmx.com:6961/announce',
-  'udp://151.80.120.114:2710/announce',
-  'udp://62.138.0.158:6969/announce',
-  'udp://9.rarbg.com:2790/announce',
-  'udp://9.rarbg.me:2720/announce',
-  'udp://9.rarbg.to:2740/announce',
-  'udp://tracker.coppersurfer.tk:6969/announce',
-  'udp://tracker.leechers-paradise.org:6969/announce',
-  'http://tracker.yoshi210.com:6969/announce',
-  'udp://tracker.pirateparty.gr:6969/announce',
-  'udp://open.demonii.si:1337/announce',
-  'udp://denis.stalker.upeer.me:6969/announce',
-  'http://t.nyaatracker.com:80/announce'
+  'udp://tracker.dler.org:6969/announce'
 ];
+
+function extractInfoHash(magnetUrl: string): string | null {
+  const hexMatch = magnetUrl.match(/xt=urn:btih:([a-fA-F0-9]{40})/i);
+  if (hexMatch && hexMatch[1]) {
+    return hexMatch[1].toLowerCase();
+  }
+  const b32Match = magnetUrl.match(/xt=urn:btih:([a-zA-Z2-7]{32})/i);
+  if (b32Match && b32Match[1]) {
+    return b32Match[1].toLowerCase();
+  }
+  return null;
+}
 
 builder.defineStreamHandler(async (args: any) => {
   const movie = await getMovieById(args.id);
@@ -116,15 +133,26 @@ builder.defineStreamHandler(async (args: any) => {
 
   const streams: Stream[] = movie.qualities.map((q) => {
     const health = q.seeders !== undefined ? `\n👤 ${q.seeders} 👥 ${q.leechers || 0}` : '';
+    const languageName = q.languages && q.languages.length > 0 ? q.languages.join('/') : 'Unknown';
+    const infoHash = extractInfoHash(q.url);
 
-    // Inject trackers into the magnet links for faster startup
+    if (infoHash) {
+      return {
+        title: `TamilMV ${languageName} ${q.quality}${health}`,
+        infoHash: infoHash,
+        sources: BEST_TRACKERS.map(tr => `tracker:${tr}`),
+        behaviorHints: {
+          bingeGroup: 'tamilmv',
+        },
+      } as Stream;
+    }
+
+    // Fallback if magnet URL lacks valid btih hash
     let finalUrl = q.url;
     if (finalUrl.startsWith('magnet:')) {
       const trackerString = BEST_TRACKERS.map(tr => `&tr=${encodeURIComponent(tr)}`).join('');
       finalUrl += trackerString;
     }
-
-    const languageName = q.languages && q.languages.length > 0 ? q.languages.join('/') : 'Unknown';
 
     return {
       title: `TamilMV ${languageName} ${q.quality}${health}`,
