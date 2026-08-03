@@ -10,12 +10,13 @@ const requiredEnv = (key: string, fallback?: string): string => {
   return value;
 };
 
-export const config = {
+export const config = { 
   port: parseInt(process.env.PORT ?? '7000', 10),
   redisUrl: requiredEnv('REDIS_URL'),
   imdbApiKey: process.env.IMDB_API_KEY ?? '',
   cinemataApiKey: process.env.CINEMATA_API_KEY ?? '',
   tamilmvBaseUrl: process.env.TAMILMV_BASE_URL ?? 'https://www.1tamilmv.observer',
   dailyCron: process.env.DAILY_CRON ?? '0 3 * * *',
+  maxScrapeLimit: parseInt(process.env.MAX_SCRAPE_LIMIT ?? '200', 10),
 };
 

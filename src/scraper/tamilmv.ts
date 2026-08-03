@@ -168,8 +168,8 @@ export async function scrapeTamilMV(): Promise<ScrapedMovie[]> {
       });
     }
 
-    if (movies.length >= 200) {
-      console.log('[TamilMV] Reached limit of 200 movies, stopping scan.');
+    if (movies.length >= config.maxScrapeLimit) {
+      console.log(`[TamilMV] Reached limit of ${config.maxScrapeLimit} movies, stopping scan.`);
       break;
     }
   }
