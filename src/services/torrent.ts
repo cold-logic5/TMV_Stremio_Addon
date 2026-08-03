@@ -107,14 +107,26 @@ function scrapeUdpTracker(
       const socket = dgram.createSocket('udp4');
       const transactionId = crypto.randomBytes(4);
 
+      let closed = false;
+      const safeClose = () => {
+        if (!closed) {
+          closed = true;
+          try {
+            socket.close();
+          } catch {
+            // socket already closed
+          }
+        }
+      };
+
       const timer = setTimeout(() => {
-        socket.close();
+        safeClose();
         resolve(null);
       }, timeout);
 
       socket.on('error', () => {
         clearTimeout(timer);
-        socket.close();
+        safeClose();
         resolve(null);
       });
 
@@ -142,18 +154,18 @@ function scrapeUdpTracker(
             // const downloaded = msg.readUInt32BE(12); // completed downloads (not needed)
             const leechers = msg.readUInt32BE(16);
 
-            socket.close();
+            safeClose();
             resolve({ seeds, leechers });
 
           } else {
             // Unexpected response
             clearTimeout(timer);
-            socket.close();
+            safeClose();
             resolve(null);
           }
         } catch {
           clearTimeout(timer);
-          socket.close();
+          safeClose();
           resolve(null);
         }
       });
