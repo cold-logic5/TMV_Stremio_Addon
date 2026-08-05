@@ -128,7 +128,7 @@ function extractInfoHash(magnetUrl: string): string | null {
 }
 
 function extractSize(q: ScrapedQuality): string | undefined {
-  if (q.size) return q.size;
+  if (q.size) return q.size.replace(/[\(\)]/g, '').trim();
   const match = (q.quality + ' ' + decodeURIComponent(q.url)).match(/(\d+(?:\.\d+)?\s*(?:GB|MB|GiB|MiB))/i);
   if (match && match[1]) {
     return match[1].replace(/\s+/g, '').toUpperCase();
@@ -137,7 +137,7 @@ function extractSize(q: ScrapedQuality): string | undefined {
 }
 
 function cleanQualityString(quality: string): string {
-  return quality.replace(/\s*\(\d+(?:\.\d+)?\s*(?:GB|MB|GiB|MiB)\)/i, '').trim();
+  return quality.replace(/\s*\(?\d+(?:\.\d+)?\s*(?:GB|MB|GiB|MiB)\)?/i, '').trim();
 }
 
 builder.defineStreamHandler(async (args: any) => {
@@ -155,15 +155,14 @@ builder.defineStreamHandler(async (args: any) => {
       infoParts.push(`👤 ${q.seeders} 👥 ${q.leechers || 0}`);
     }
     if (sizeStr) {
-      const formattedSize = sizeStr.startsWith('(') ? sizeStr : `(${sizeStr})`;
-      infoParts.push(`💾 ${formattedSize}`);
+      infoParts.push(`💾 ${sizeStr}`);
     }
 
     const health = infoParts.length > 0 ? `\n${infoParts.join(' ')}` : '';
 
     if (infoHash) {
       return {
-        title: `TamilMV ${languageName} ${cleanedQuality}${health}`,
+        title: `${languageName} ${cleanedQuality}${health}`,
         infoHash: infoHash,
         sources: BEST_TRACKERS.map(tr => `tracker:${tr}`),
         behaviorHints: {
@@ -180,7 +179,7 @@ builder.defineStreamHandler(async (args: any) => {
     }
 
     return {
-      title: `TamilMV ${languageName} ${cleanedQuality}${health}`,
+      title: `${languageName} ${cleanedQuality}${health}`,
       url: finalUrl,
       behaviorHints: {
         bingeGroup: 'tamilmv',
