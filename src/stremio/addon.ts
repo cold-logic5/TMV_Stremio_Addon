@@ -1,6 +1,6 @@
 import { addonBuilder, type Manifest, type Stream } from 'stremio-addon-sdk';
 import { listMovieIds, getMovieById, getMoviesByIds } from '../services/cache';
-import { EnrichedMovie } from '../models/movie';
+import { EnrichedMovie, ScrapedQuality } from '../models/movie';
 
 const MANIFEST: Manifest = {
   id: 'org.tamilmv.recent',
@@ -127,18 +127,43 @@ function extractInfoHash(magnetUrl: string): string | null {
   return null;
 }
 
+function extractSize(q: ScrapedQuality): string | undefined {
+  if (q.size) return q.size;
+  const match = (q.quality + ' ' + decodeURIComponent(q.url)).match(/(\d+(?:\.\d+)?\s*(?:GB|MB|GiB|MiB))/i);
+  if (match && match[1]) {
+    return match[1].replace(/\s+/g, '').toUpperCase();
+  }
+  return undefined;
+}
+
+function cleanQualityString(quality: string): string {
+  return quality.replace(/\s*\(\d+(?:\.\d+)?\s*(?:GB|MB|GiB|MiB)\)/i, '').trim();
+}
+
 builder.defineStreamHandler(async (args: any) => {
   const movie = await getMovieById(args.id);
   if (!movie) return { streams: [] };
 
   const streams: Stream[] = movie.qualities.map((q) => {
-    const health = q.seeders !== undefined ? `\n👤 ${q.seeders} 👥 ${q.leechers || 0}` : '';
+    const sizeStr = extractSize(q);
+    const cleanedQuality = cleanQualityString(q.quality);
     const languageName = q.languages && q.languages.length > 0 ? q.languages.join('/') : 'Unknown';
     const infoHash = extractInfoHash(q.url);
 
+    const infoParts: string[] = [];
+    if (q.seeders !== undefined) {
+      infoParts.push(`👤 ${q.seeders} 👥 ${q.leechers || 0}`);
+    }
+    if (sizeStr) {
+      const formattedSize = sizeStr.startsWith('(') ? sizeStr : `(${sizeStr})`;
+      infoParts.push(`💾 ${formattedSize}`);
+    }
+
+    const health = infoParts.length > 0 ? `\n${infoParts.join(' ')}` : '';
+
     if (infoHash) {
       return {
-        title: `TamilMV ${languageName} ${q.quality}${health}`,
+        title: `TamilMV ${languageName} ${cleanedQuality}${health}`,
         infoHash: infoHash,
         sources: BEST_TRACKERS.map(tr => `tracker:${tr}`),
         behaviorHints: {
@@ -155,7 +180,7 @@ builder.defineStreamHandler(async (args: any) => {
     }
 
     return {
-      title: `TamilMV ${languageName} ${q.quality}${health}`,
+      title: `TamilMV ${languageName} ${cleanedQuality}${health}`,
       url: finalUrl,
       behaviorHints: {
         bingeGroup: 'tamilmv',

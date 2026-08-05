@@ -19,7 +19,10 @@ const guessQuality = (text: string): ScrapedQuality['quality'] | string => {
   return 'unknown';
 };
 
-const extractStreamDetails = (text: string, baseQuality: string): string => {
+const extractStreamDetails = (
+  text: string,
+  baseQuality: string
+): { quality: string; size?: string } => {
   const details = [baseQuality];
 
   // 1. Extract Codec (HEVC/x265 is highly sought after for smaller file sizes)
@@ -37,13 +40,13 @@ const extractStreamDetails = (text: string, baseQuality: string): string => {
   }
 
   // 3. Extract File Size (e.g., 1.4GB, 700MB, 2.5 GB)
-  const sizeMatch = text.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i);
+  let size: string | undefined;
+  const sizeMatch = text.match(/(\d+(?:\.\d+)?\s*(?:GB|MB|GiB|MiB))/i);
   if (sizeMatch && sizeMatch[1]) {
-    // Add size in parentheses at the end
-    details.push(`(${sizeMatch[1].replace(/\s+/g, '').toUpperCase()})`);
+    size = sizeMatch[1].replace(/\s+/g, '').toUpperCase();
   }
 
-  return details.join(' ').trim();
+  return { quality: details.join(' ').trim(), size };
 };
 
 const parseTitleAndYear = (
@@ -230,10 +233,11 @@ export async function scrapeMoviePageForMagnets(url: string): Promise<ScrapedQua
       const baseQuality = guessQuality(textToScan) as string;
 
       // Enhance it with size, codec, and audio details
-      const enhancedQuality = extractStreamDetails(textToScan, baseQuality);
+      const { quality, size } = extractStreamDetails(textToScan, baseQuality);
 
       results.push({
-        quality: enhancedQuality,
+        quality,
+        size,
         type: 'magnet',
         url: href,
       });
