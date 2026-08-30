@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 import Redis from 'ioredis';
-import { EnrichedMovie } from '../models/movie';
+import { EnrichedMovie, ScrapedQuality } from '../models/movie';
 import { config } from './config';
 
 // Initialize Redis only if REDIS_URL is provided
@@ -33,60 +33,172 @@ export const getMovieKey = (id: string): string => `${MOVIE_KEY_PREFIX}${id}`;
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'movies.json');
 
-const getExternalId = (movie: EnrichedMovie): string =>
+export const getExternalId = (movie: EnrichedMovie): string =>
   movie.imdbId || `tamilmv-${movie.id}`;
+
+export const normalizeTitle = (title?: string): string =>
+  (title || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+
+function getMergeKey(movie: EnrichedMovie): string {
+  if (movie.imdbId) return `imdb:${movie.imdbId}`;
+  const cleanTitle = normalizeTitle(movie.name || movie.titleGuess || movie.rawTitle);
+  const year = movie.year || movie.yearGuess || '';
+  if (cleanTitle) return `title:${cleanTitle}_${year}`;
+  return `id:${movie.id}`;
+}
 
 // In-memory data store
 const inMemoryMovies = new Map<string, EnrichedMovie>();
 let inMemoryMovieIds: string[] = [];
 let isInitialized = false;
 
-function populateInMemoryStore(movies: EnrichedMovie[]): void {
-  const movieMap = new Map<string, EnrichedMovie>();
+function extractMagnetHash(magnetUrl: string): string {
+  const match = magnetUrl.match(/xt=urn:btih:([a-zA-Z0-9]{32,40})/i);
+  return match && match[1] ? match[1].toLowerCase() : magnetUrl;
+}
 
-  for (const movie of movies) {
-    const id = getExternalId(movie);
-    if (movieMap.has(id)) {
-      const existing = movieMap.get(id)!;
-      existing.qualities.push(...movie.qualities);
+function mergeQualities(existingQualities: ScrapedQuality[], newQualities: ScrapedQuality[]): ScrapedQuality[] {
+  const qualityMap = new Map<string, ScrapedQuality>();
 
-      if (movie.languages) {
-        existing.languages = Array.from(new Set([...(existing.languages || []), ...movie.languages]));
-      }
+  // New qualities first (newer scrapes take priority)
+  for (const q of newQualities) {
+    const key = extractMagnetHash(q.url);
+    qualityMap.set(key, { ...q });
+  }
 
-      if (movie.rawText && existing.rawText !== movie.rawText) {
-        existing.rawText += '\n\n' + movie.rawText;
-      }
-    } else {
-      movieMap.set(id, movie);
+  // Preserve existing qualities if hash is not present in new batch
+  for (const q of existingQualities) {
+    const key = extractMagnetHash(q.url);
+    if (!qualityMap.has(key)) {
+      qualityMap.set(key, { ...q });
     }
   }
 
+  return Array.from(qualityMap.values());
+}
+
+function mergeLanguages(existingLangs: string[] = [], newLangs: string[] = []): string[] {
+  const combined = Array.from(new Set([...existingLangs, ...newLangs]));
+  if (combined.length > 1 && !combined.includes('Multi-Lang')) {
+    combined.push('Multi-Lang');
+  }
+  return combined;
+}
+
+export function mergeAndTrimMovies(
+  newMovies: EnrichedMovie[],
+  existingMovies: EnrichedMovie[] = [],
+  maxLimit: number = config.maxDatabaseLimit
+): EnrichedMovie[] {
+  const mergedMap = new Map<string, EnrichedMovie>();
+  const orderedIds: string[] = [];
+
+  // Helper to add or merge movie
+  const processMovie = (movie: EnrichedMovie, isNew: boolean) => {
+    const key = getMergeKey(movie);
+    const externalId = getExternalId(movie);
+
+    if (mergedMap.has(key)) {
+      const existing = mergedMap.get(key)!;
+      // Merge qualities (new qualities prepended/prioritized)
+      existing.qualities = isNew
+        ? mergeQualities(existing.qualities, movie.qualities)
+        : mergeQualities(movie.qualities, existing.qualities);
+
+      // Merge language tags
+      existing.languages = mergeLanguages(existing.languages, movie.languages);
+
+      // Update metadata if new movie has richer data
+      if (isNew) {
+        if (movie.imdbId && !existing.imdbId) existing.imdbId = movie.imdbId;
+        if (movie.poster && !existing.poster) existing.poster = movie.poster;
+        if (movie.thumbnail && !existing.thumbnail) existing.thumbnail = movie.thumbnail;
+        if (movie.imdbRating) existing.imdbRating = movie.imdbRating;
+        if (movie.description && (!existing.description || movie.description.length > existing.description.length)) {
+          existing.description = movie.description;
+        }
+      }
+
+      if (movie.rawText && existing.rawText && !existing.rawText.includes(movie.rawText)) {
+        existing.rawText += '\n\n' + movie.rawText;
+      }
+    } else {
+      mergedMap.set(key, { ...movie });
+      if (!orderedIds.includes(externalId)) {
+        orderedIds.push(externalId);
+      }
+    }
+  };
+
+  // 1. Process NEW movies first so they appear at the top of the catalog
+  for (const m of newMovies) {
+    processMovie(m, true);
+  }
+
+  // 2. Process EXISTING movies
+  for (const m of existingMovies) {
+    processMovie(m, false);
+  }
+
+  // Build final array in ordered sequence
+  const result: EnrichedMovie[] = [];
+  const processedKeys = new Set<string>();
+
+  for (const m of Array.from(mergedMap.values())) {
+    const externalId = getExternalId(m);
+    if (!processedKeys.has(externalId)) {
+      processedKeys.add(externalId);
+      result.push(m);
+    }
+  }
+
+  // Slice strictly to maxDatabaseLimit (e.g. 500)
+  const trimmed = result.slice(0, maxLimit);
+  console.log(`[Cache] Database merged: ${newMovies.length} new + ${existingMovies.length} existing -> ${trimmed.length} total (Limit: ${maxLimit}).`);
+  return trimmed;
+}
+
+function populateInMemoryStore(movies: EnrichedMovie[]): void {
   inMemoryMovies.clear();
   inMemoryMovieIds = [];
 
-  for (const [id, mergedMovie] of movieMap.entries()) {
+  for (const movie of movies) {
+    const id = getExternalId(movie);
     inMemoryMovieIds.push(id);
-    inMemoryMovies.set(id, mergedMovie);
+    inMemoryMovies.set(id, movie);
   }
 
-  console.log(`[Cache] In-memory store ready with ${inMemoryMovieIds.length} movies.`);
+  console.log(`[Cache] In-memory store populated with ${inMemoryMovieIds.length} movies.`);
 }
 
-export async function saveMovies(movies: EnrichedMovie[]): Promise<void> {
-  console.log('[Cache] Saving movies count:', movies.length);
+export async function saveMovies(
+  newMovies: EnrichedMovie[],
+  existingMovies?: EnrichedMovie[]
+): Promise<void> {
+  console.log('[Cache] saveMovies called with new items count:', newMovies.length);
+
+  // If existingMovies was not provided, load current database
+  let baseExisting = existingMovies;
+  if (!baseExisting) {
+    baseExisting = await getAllCachedMovies();
+  }
+
+  // Merge new items into existing database and trim to 500
+  const finalMovies = mergeAndTrimMovies(newMovies, baseExisting, config.maxDatabaseLimit);
 
   // 1. Update in-memory store
-  populateInMemoryStore(movies);
-  const allMovies = Array.from(inMemoryMovies.values());
+  populateInMemoryStore(finalMovies);
 
   // 2. Save locally to data/movies.json
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
-    fs.writeFileSync(DATA_FILE, JSON.stringify(allMovies, null, 2), 'utf-8');
-    console.log(`[Cache] Successfully wrote ${allMovies.length} movies to local file: ${DATA_FILE}`);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(finalMovies, null, 2), 'utf-8');
+    console.log(`[Cache] Successfully wrote ${finalMovies.length} movies to local file: ${DATA_FILE}`);
   } catch (err: any) {
     console.error('[Cache] Failed to write local JSON file:', err.message);
   }
@@ -101,7 +213,7 @@ export async function saveMovies(movies: EnrichedMovie[]): Promise<void> {
           description: `TamilMV Movies Catalog Cache (Updated: ${new Date().toISOString()})`,
           files: {
             'movies.json': {
-              content: JSON.stringify(allMovies, null, 2),
+              content: JSON.stringify(finalMovies, null, 2),
             },
           },
         },
@@ -150,6 +262,13 @@ export async function saveMovies(movies: EnrichedMovie[]): Promise<void> {
   }
 }
 
+export async function getAllCachedMovies(): Promise<EnrichedMovie[]> {
+  if (!isInitialized || inMemoryMovieIds.length === 0) {
+    await initCache();
+  }
+  return inMemoryMovieIds.map((id) => inMemoryMovies.get(id)!).filter(Boolean);
+}
+
 export async function initCache(): Promise<void> {
   console.log('[Cache] Initializing cache...');
 
@@ -176,7 +295,6 @@ export async function initCache(): Promise<void> {
       if (Array.isArray(data) && data.length > 0) {
         populateInMemoryStore(data);
         isInitialized = true;
-        // Also save local copy
         try {
           if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
           fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
@@ -280,14 +398,14 @@ function setupPeriodicRefresh(): void {
 }
 
 export async function listMovieIds(): Promise<string[]> {
-  if (!isInitialized && inMemoryMovieIds.length === 0) {
+  if (!isInitialized || inMemoryMovieIds.length === 0) {
     await initCache();
   }
   return inMemoryMovieIds;
 }
 
 export async function getMovieById(id: string): Promise<EnrichedMovie | null> {
-  if (!isInitialized && inMemoryMovieIds.length === 0) {
+  if (!isInitialized || inMemoryMovieIds.length === 0) {
     await initCache();
   }
   return inMemoryMovies.get(id) ?? null;
@@ -295,7 +413,7 @@ export async function getMovieById(id: string): Promise<EnrichedMovie | null> {
 
 export async function getMoviesByIds(ids: string[]): Promise<EnrichedMovie[]> {
   if (!ids.length) return [];
-  if (!isInitialized && inMemoryMovieIds.length === 0) {
+  if (!isInitialized || inMemoryMovieIds.length === 0) {
     await initCache();
   }
 

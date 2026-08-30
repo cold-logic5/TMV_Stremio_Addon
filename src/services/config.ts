@@ -14,6 +14,7 @@ export const config = {
   tamilmvBaseUrl: process.env.TAMILMV_BASE_URL ?? 'https://www.1tamilmv.observer',
   dailyCron: process.env.DAILY_CRON ?? '0 3 * * *',
   maxScrapeLimit: parseInt(process.env.MAX_SCRAPE_LIMIT ?? '200', 10),
+  maxDatabaseLimit: parseInt(process.env.MAX_DATABASE_LIMIT ?? '500', 10),
 };
 
 

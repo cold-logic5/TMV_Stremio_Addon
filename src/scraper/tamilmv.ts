@@ -152,9 +152,23 @@ export async function fetchTamilMVHomepageHtml(): Promise<{ html: string; active
   throw lastError || new Error('All TamilMV mirrors failed to respond.');
 }
 
-export async function scrapeTamilMV(): Promise<ScrapedMovie[]> {
+export function extractTopicIdentifier(url: string): string {
+  const match = url.match(/\/topic\/(\d+)/i);
+  if (match && match[1]) {
+    return match[1];
+  }
+  try {
+    const parsed = new URL(url);
+    return parsed.pathname;
+  } catch {
+    return url;
+  }
+}
+
+export async function scrapeTamilMV(knownTopicIdentifiers?: Set<string>): Promise<ScrapedMovie[]> {
   const { html, activeBaseUrl } = await fetchTamilMVHomepageHtml();
   const movies: ScrapedMovie[] = [];
+  let skippedCount = 0;
 
   // 1. Split the raw HTML into layout blocks. 
   // By splitting on <br>, <p>, <div>, etc. BEFORE parsing DOM, we prevent multiple movies 
@@ -179,6 +193,13 @@ export async function scrapeTamilMV(): Promise<ScrapedMovie[]> {
     // Ensure link is absolute using the active working mirror
     if (!pageUrl.startsWith('http')) {
       pageUrl = `${activeBaseUrl.replace(/\/+$/, '')}/${pageUrl.replace(/^\/+/, '')}`;
+    }
+
+    // Check if this topic was already scraped in existing database
+    const topicId = extractTopicIdentifier(pageUrl);
+    if (knownTopicIdentifiers && (knownTopicIdentifiers.has(topicId) || knownTopicIdentifiers.has(pageUrl))) {
+      skippedCount++;
+      continue;
     }
 
     // Since chunk is isolated, the text is exactly what belongs to this movie
@@ -218,7 +239,7 @@ export async function scrapeTamilMV(): Promise<ScrapedMovie[]> {
   }
 
   // eslint-disable-next-line no-console
-  console.log('[TamilMV] Processing magnets for', movies.length, 'movies');
+  console.log(`[TamilMV] Skipped ${skippedCount} already-cached topics. Found ${movies.length} NEW movies to scrape.`);
 
   for (const movie of movies) {
     if (movie.pageUrl) {
