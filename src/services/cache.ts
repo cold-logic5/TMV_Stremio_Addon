@@ -3,7 +3,6 @@ import path from 'path';
 import axios from 'axios';
 import Redis from 'ioredis';
 import { EnrichedMovie } from '../models/movie';
-import { EnrichedSeries } from '../models/series';
 import { makeId } from '../scraper/tamilmv';
 import { config } from './config';
 
@@ -34,29 +33,14 @@ export const getMovieKey = (id: string): string => `${MOVIE_KEY_PREFIX}${id}`;
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'movies.json');
-const DATA_SERIES_FILE = path.join(DATA_DIR, 'series.json');
 
 const getExternalId = (movie: EnrichedMovie): string =>
   movie.imdbId || `tamilmv-${movie.id}`;
 
-// In-memory data store for movies
+// In-memory data store
 const inMemoryMovies = new Map<string, EnrichedMovie>();
 let inMemoryMovieIds: string[] = [];
-
-// In-memory data store for series
-const inMemorySeries = new Map<string, EnrichedSeries>();
 let isInitialized = false;
-
-function populateInMemorySeriesStore(seriesList: EnrichedSeries[]): void {
-  inMemorySeries.clear();
-  for (const s of seriesList) {
-    inMemorySeries.set(s.id, s);
-    if (s.imdbId) {
-      inMemorySeries.set(s.imdbId, s);
-    }
-  }
-  console.log(`[Cache] In-memory series store ready with ${seriesList.length} series.`);
-}
 
 function populateInMemoryStore(movies: EnrichedMovie[]): void {
   const movieMap = new Map<string, EnrichedMovie>();
@@ -184,49 +168,9 @@ export async function saveMovies(movies: EnrichedMovie[]): Promise<void> {
   }
 }
 
-export async function saveSeries(seriesList: EnrichedSeries[]): Promise<void> {
-  console.log('[Cache] Saving series count:', seriesList.length);
-  populateInMemorySeriesStore(seriesList);
+export async function initCache(): Promise<void> {
+  console.log('[Cache] Initializing cache...');
 
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    fs.writeFileSync(DATA_SERIES_FILE, JSON.stringify(seriesList, null, 2), 'utf-8');
-    console.log(`[Cache] Successfully wrote ${seriesList.length} series to local file: ${DATA_SERIES_FILE}`);
-  } catch (err: any) {
-    console.error('[Cache] Failed to write local series JSON file:', err.message);
-  }
-
-  if (config.gistId && config.githubToken) {
-    try {
-      console.log('[Cache] Uploading series.json to GitHub Gist...');
-      await axios.patch(
-        `https://api.github.com/gists/${config.gistId}`,
-        {
-          files: {
-            'series.json': {
-              content: JSON.stringify(seriesList, null, 2),
-            },
-          },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${config.githubToken}`,
-            Accept: 'application/vnd.github+json',
-            'User-Agent': 'Stremio-Addon-Tamil',
-          },
-          timeout: 15000,
-        }
-      );
-      console.log(`[Cache] Successfully updated series in GitHub Gist!`);
-    } catch (err: any) {
-      console.error('[Cache] Failed to update series in GitHub Gist:', err.response?.data || err.message);
-    }
-  }
-}
-
-async function initMovieCache(): Promise<void> {
   // 1. Try fetching from remote Static URL / CDN
   if (config.dataUrl) {
     try {
@@ -249,6 +193,7 @@ async function initMovieCache(): Promise<void> {
       }
       if (Array.isArray(data) && data.length > 0) {
         populateInMemoryStore(data);
+        isInitialized = true;
         // Also save local deduplicated copy
         try {
           if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -257,6 +202,7 @@ async function initMovieCache(): Promise<void> {
         } catch {
           // ignore local save error
         }
+        setupPeriodicRefresh();
         return;
       }
     } catch (err: any) {
@@ -284,6 +230,8 @@ async function initMovieCache(): Promise<void> {
         const data = JSON.parse(fileContent);
         if (Array.isArray(data) && data.length > 0) {
           populateInMemoryStore(data);
+          isInitialized = true;
+          setupPeriodicRefresh();
           return;
         }
       }
@@ -300,6 +248,8 @@ async function initMovieCache(): Promise<void> {
       const data = JSON.parse(raw);
       if (Array.isArray(data) && data.length > 0) {
         populateInMemoryStore(data);
+        isInitialized = true;
+        setupPeriodicRefresh();
         return;
       }
     } catch (err: any) {
@@ -320,6 +270,8 @@ async function initMovieCache(): Promise<void> {
         });
         if (movies.length > 0) {
           populateInMemoryStore(movies);
+          isInitialized = true;
+          setupPeriodicRefresh();
           return;
         }
       }
@@ -329,93 +281,6 @@ async function initMovieCache(): Promise<void> {
   }
 
   console.log('[Cache] No pre-existing movie data found. Will populate after first scrape.');
-}
-
-async function initSeriesCache(): Promise<void> {
-  // 1. Try remote SERIES_DATA_URL
-  if (config.seriesDataUrl) {
-    try {
-      console.log(`[Cache] Fetching series from remote SERIES_DATA_URL: ${config.seriesDataUrl}`);
-      const fetchUrl = config.seriesDataUrl.includes('?')
-        ? `${config.seriesDataUrl}&_t=${Date.now()}`
-        : `${config.seriesDataUrl}?_t=${Date.now()}`;
-
-      const response = await axios.get(fetchUrl, {
-        timeout: 10000,
-        headers: {
-          'Cache-Control': 'no-cache',
-          Pragma: 'no-cache',
-          'User-Agent': 'Stremio-Addon-Tamil',
-        },
-      });
-      let data = response.data;
-      if (typeof data === 'string') {
-        data = JSON.parse(data);
-      }
-      if (Array.isArray(data) && data.length > 0) {
-        populateInMemorySeriesStore(data);
-        try {
-          if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-          fs.writeFileSync(DATA_SERIES_FILE, JSON.stringify(data, null, 2), 'utf-8');
-        } catch {
-          // ignore
-        }
-        return;
-      }
-    } catch (err: any) {
-      console.warn(`[Cache] Failed to fetch series from SERIES_DATA_URL (${err.message}). Trying local file...`);
-    }
-  }
-
-  // 2. Try GitHub Gist
-  if (config.gistId) {
-    try {
-      console.log(`[Cache] Fetching series from GitHub Gist: ${config.gistId}`);
-      const headers: Record<string, string> = {
-        Accept: 'application/vnd.github+json',
-        'User-Agent': 'Stremio-Addon-Tamil',
-      };
-      if (config.githubToken) {
-        headers.Authorization = `Bearer ${config.githubToken}`;
-      }
-      const response = await axios.get(`https://api.github.com/gists/${config.gistId}`, {
-        headers,
-        timeout: 10000,
-      });
-      const fileContent = response.data?.files?.['series.json']?.content;
-      if (fileContent) {
-        const data = JSON.parse(fileContent);
-        if (Array.isArray(data) && data.length > 0) {
-          populateInMemorySeriesStore(data);
-          return;
-        }
-      }
-    } catch (err: any) {
-      console.warn(`[Cache] Failed to fetch series from GitHub Gist (${err.message}). Trying local file...`);
-    }
-  }
-
-  // 3. Try reading local data/series.json file
-  if (fs.existsSync(DATA_SERIES_FILE)) {
-    try {
-      console.log(`[Cache] Loading series from local file: ${DATA_SERIES_FILE}`);
-      const raw = fs.readFileSync(DATA_SERIES_FILE, 'utf-8');
-      const data = JSON.parse(raw);
-      if (Array.isArray(data) && data.length > 0) {
-        populateInMemorySeriesStore(data);
-        return;
-      }
-    } catch (err: any) {
-      console.warn(`[Cache] Failed to read local series JSON file (${err.message}).`);
-    }
-  }
-
-  console.log('[Cache] No pre-existing series data found. Will populate after first scrape.');
-}
-
-export async function initCache(): Promise<void> {
-  console.log('[Cache] Initializing cache...');
-  await Promise.all([initMovieCache(), initSeriesCache()]);
   isInitialized = true;
   setupPeriodicRefresh();
 }
@@ -462,22 +327,3 @@ export async function getMoviesByIds(ids: string[]): Promise<EnrichedMovie[]> {
   }
   return result;
 }
-
-export async function listSeries(): Promise<EnrichedSeries[]> {
-  if (!isInitialized && inMemorySeries.size === 0) {
-    await initCache();
-  }
-  const unique = new Map<string, EnrichedSeries>();
-  for (const s of inMemorySeries.values()) {
-    unique.set(s.id, s);
-  }
-  return Array.from(unique.values());
-}
-
-export async function getSeriesById(id: string): Promise<EnrichedSeries | null> {
-  if (!isInitialized && inMemorySeries.size === 0) {
-    await initCache();
-  }
-  return inMemorySeries.get(id) ?? null;
-}
-

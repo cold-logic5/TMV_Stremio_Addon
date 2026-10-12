@@ -1,131 +1,86 @@
 import { addonBuilder, type Manifest, type Stream } from 'stremio-addon-sdk';
-import { listMovieIds, getMovieById, getMoviesByIds, listSeries, getSeriesById } from '../services/cache';
+import { listMovieIds, getMovieById, getMoviesByIds } from '../services/cache';
 import { EnrichedMovie, ScrapedQuality } from '../models/movie';
-import { EnrichedSeries } from '../models/series';
 
 const MANIFEST: Manifest = {
   id: 'org.tamilmv.recent',
-  version: '1.2.1',
+  version: '1.1.4',
   name: 'InMax',
-  description: 'Trending Indian Movies with multi-language streams & Bigg Boss Series.',
+  description: 'Trending Indian Movies with multi-language streams (Tamil, Malayalam, Telugu, Kannada, Hindi).',
   logo: 'https://cold-logic5.github.io/TMV_Stremio_Addon_img/InMax%20Logo4.png',
   catalogs: [
     {
       type: 'movie',
       id: 'tamilmv-now',
-      name: 'Tamilmv Latest',
+      name: 'Tamilmv Recent',
       extra: [
         { name: 'skip', isRequired: false },
         { name: 'limit', isRequired: false },
+        // { name: 'genre', isRequired: false, options: ['All', 'Tamil', 'Malayalam', 'Telugu', 'Kannada', 'Hindi', 'Multi-Lang'] }
         { name: 'genre', isRequired: false, options: ['Tamil', 'Malayalam', 'Telugu', 'Kannada', 'Hindi', 'Multi-Lang'] }
-      ],
-    },
-    {
-      type: 'series',
-      id: 'tamilmv-series',
-      name: 'Big Boss',
-      extra: [
-        { name: 'skip', isRequired: false },
-        { name: 'limit', isRequired: false },
-        { name: 'genre', isRequired: false, options: ['Tamil', 'Telugu'] }
+
       ],
     },
   ],
-  resources: [
-    'catalog',
-    {
-      name: 'meta',
-      types: ['movie', 'series'],
-      idPrefixes: ['tt', 'tamilmv-'],
-    },
-    {
-      name: 'stream',
-      types: ['movie', 'series'],
-      idPrefixes: ['tt', 'tamilmv-'],
-    },
-  ],
-  types: ['movie', 'series'],
+  resources: ['catalog', 'stream', 'meta'],
+  types: ['movie'],
   idPrefixes: ['tt', 'tamilmv-'],
+  stremioAddonsConfig: {
+    "issuer": "https://stremio-addons.net",
+    "signature": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..cRYD4CgiXYy97pB2a10sug.EGnamjOef66h3f9rFBdTarLsvequuRlT10-0tFIGqPRXiMUv7n_CY1ehgfS3nPN2xTLXwY1SlXehsjFh0PsCl6hN6Jz_BXc3gvtvB3TotC8GUgIyjiD0E3iPr4LK2eD1.Ht5wJLt9h-WFNnG2LUUOtw"
+  }
 };
 
 const builder = new addonBuilder(MANIFEST);
 
 builder.defineCatalogHandler(async (args: any) => {
-  if (args.type === 'movie' && args.id === 'tamilmv-now') {
-    const skip = Number(args.extra?.skip ?? 0);
-    const limit = Number(args.extra?.limit ?? 50);
-    const genre = args.extra?.genre;
-
-    const ids = await listMovieIds();
-    let movies = await getMoviesByIds(ids);
-
-    if (genre) {
-      movies = movies.filter(m => m.languages && m.languages.includes(genre));
-    }
-
-    const requestedCount = movies.length;
-    movies = movies.slice(skip, skip + limit);
-
-    console.log('********************************************');
-    console.log(`🚀 STREMIO IS REQUESTING ${movies.length} MOVIES (Genre: ${genre || 'All'} | Total found: ${requestedCount})`);
-    console.log('********************************************');
-
-    const metas = movies.map((m: EnrichedMovie) => ({
-      id: m.imdbId || `tamilmv-${m.id}`,
-      type: 'movie' as const,
-      name: m.name || m.titleGuess || m.rawTitle,
-      poster: m.poster,
-      thumbnail: m.thumbnail,
-      year: m.year ?? m.yearGuess,
-      genres: m.genres && m.genres.length > 0
-        ? Array.from(new Set([...m.genres, ...(m.languages || [])]))
-        : (m.languages || []),
-      description: m.description
-        ? `${m.description}\n\nOriginal TamilMV Title: ${m.rawText || m.rawTitle}`
-        : `Original TamilMV Title: ${m.rawText || m.rawTitle}`,
-      imdbRating: m.imdbRating,
-    }));
-
-    return {
-      metas,
-      cacheMaxAge: 60,
-      staleRevalidate: 30,
-      staleError: 3600
-    };
+  if (args.type !== 'movie' || args.id !== 'tamilmv-now') {
+    return { metas: [] };
   }
 
-  if (args.type === 'series' && args.id === 'tamilmv-series') {
-    const genre = args.extra?.genre;
-    let allSeries = await listSeries();
+  const skip = Number(args.extra?.skip ?? 0);
+  const limit = Number(args.extra?.limit ?? 50);
+  const genre = args.extra?.genre;
 
-    if (genre) {
-      allSeries = allSeries.filter(s => s.genre === genre || s.genres?.includes(genre));
-    }
+  const ids = await listMovieIds();
+  let movies = await getMoviesByIds(ids);
 
-    const metas = allSeries.map((s: EnrichedSeries) => ({
-      id: s.imdbId || s.id,
-      type: 'series' as const,
-      name: s.name,
-      poster: s.poster,
-      thumbnail: s.thumbnail || s.poster,
-      background: s.background,
-      genres: s.genres || [s.genre],
-      description: s.description || `${s.name} - Latest daily episodes scraped directly from TamilMV.`,
-      imdbRating: s.imdbRating,
-      releaseInfo: s.releaseInfo || (s.year ? `${s.year}` : undefined),
-    }));
-
-    console.log(`[Stremio] Serving ${metas.length} series in 'Big Boss' catalog (Genre: ${genre || 'All'})`);
-
-    return {
-      metas,
-      cacheMaxAge: 60,
-      staleRevalidate: 30,
-      staleError: 3600
-    };
+  // if (genre && genre !== 'All') {
+  if (genre) {
+    movies = movies.filter(m => m.languages && m.languages.includes(genre));
   }
 
-  return { metas: [] };
+  const requestedCount = movies.length;
+  // Apply pagination after filtering
+  movies = movies.slice(skip, skip + limit);
+
+  // VIBRANT LOG FOR VISIBILITY
+  console.log('********************************************');
+  console.log(`🚀 STREMIO IS REQUESTING ${movies.length} MOVIES (Genre: ${genre || 'All'} | Total found: ${requestedCount})`);
+  console.log('********************************************');
+
+  const metas = movies.map((m: EnrichedMovie) => ({
+    id: m.imdbId || `tamilmv-${m.id}`,
+    type: 'movie' as const,
+    name: m.name || m.titleGuess || m.rawTitle,
+    poster: m.poster,
+    thumbnail: m.thumbnail,
+    year: m.year ?? m.yearGuess,
+    genres: m.genres && m.genres.length > 0
+      ? Array.from(new Set([...m.genres, ...(m.languages || [])]))
+      : (m.languages || []),
+    description: m.description
+      ? `${m.description}\n\nOriginal TamilMV Title: ${m.rawText || m.rawTitle}`
+      : `Original TamilMV Title: ${m.rawText || m.rawTitle}`,
+    imdbRating: m.imdbRating,
+  }));
+
+  return {
+    metas,
+    cacheMaxAge: 60,          // Refresh every minute
+    staleRevalidate: 30,      // Check for updates every 30 seconds
+    staleError: 3600          // Use old data for 1 hour if server is down
+  };
 });
 
 // High-performance active public trackers to speed up peer discovery
@@ -187,8 +142,11 @@ function cleanQualityString(quality: string): string {
   return quality.replace(/\s*\(?\d+(?:\.\d+)?\s*(?:GB|MB|GiB|MiB)\)?/i, '').trim();
 }
 
-function formatQualitiesToStreams(qualities: ScrapedQuality[], bingeGroup = 'tamilmv'): Stream[] {
-  return qualities.map((q) => {
+builder.defineStreamHandler(async (args: any) => {
+  const movie = await getMovieById(args.id);
+  if (!movie) return { streams: [] };
+
+  const streams: Stream[] = movie.qualities.map((q) => {
     const sizeStr = extractSize(q);
     const cleanedQuality = cleanQualityString(q.quality);
     const languageName = q.languages && q.languages.length > 0 ? q.languages.join('/') : 'Unknown';
@@ -210,7 +168,7 @@ function formatQualitiesToStreams(qualities: ScrapedQuality[], bingeGroup = 'tam
         infoHash: infoHash,
         sources: BEST_TRACKERS.map(tr => `tracker:${tr}`),
         behaviorHints: {
-          bingeGroup,
+          bingeGroup: 'tamilmv',
         },
       } as Stream;
     }
@@ -226,94 +184,16 @@ function formatQualitiesToStreams(qualities: ScrapedQuality[], bingeGroup = 'tam
       title: `${languageName} ${cleanedQuality}${health}`,
       url: finalUrl,
       behaviorHints: {
-        bingeGroup,
+        bingeGroup: 'tamilmv',
       },
     };
   });
-}
 
-builder.defineStreamHandler(async (args: any) => {
-  // 1. Handle series streams (ID format: '<seriesId>:<season>:<episode>')
-  if (args.type === 'series' || (typeof args.id === 'string' && args.id.includes(':'))) {
-    const parts = args.id.split(':');
-    const seriesId = parts[0];
-    const season = parseInt(parts[1], 10);
-    const episode = parseInt(parts[2], 10);
-
-    const series = await getSeriesById(seriesId);
-    if (!series) {
-      console.log(`[Stream] Series not found for id: ${seriesId}`);
-      return { streams: [] };
-    }
-
-    const matchedEpisode = series.episodes.find(
-      (e) => e.season === season && e.episode === episode
-    );
-
-    if (!matchedEpisode || !matchedEpisode.qualities.length) {
-      console.log(`[Stream] No episode found for ${series.name} S${season}E${episode}`);
-      return { streams: [] };
-    }
-
-    console.log(`[Stream] Serving ${matchedEpisode.qualities.length} streams for ${series.name} S${season}E${episode}`);
-    return {
-      streams: formatQualitiesToStreams(matchedEpisode.qualities, `tamilmv-${series.id}`)
-    };
-  }
-
-  // 2. Handle movie streams
-  const movie = await getMovieById(args.id);
-  if (!movie) return { streams: [] };
-
-  return {
-    streams: formatQualitiesToStreams(movie.qualities, 'tamilmv')
-  };
+  return { streams };
 });
 
 builder.defineMetaHandler(async (args: any) => {
-  // Handle Series metadata
-  if (args.type === 'series') {
-    const series = await getSeriesById(args.id);
-    if (series) {
-      const canonicalId = series.imdbId || args.id;
-      const baseTimestamp = Date.now();
-      const videos = series.episodes.map((ep) => {
-        const daysAgo = Math.max(0, series.episodes.length - ep.episode);
-        const fallbackDate = new Date(baseTimestamp - daysAgo * 86400000).toISOString();
-        return {
-          id: `${canonicalId}:${ep.season}:${ep.episode}`,
-          title: ep.title || `Episode ${ep.episode}`,
-          name: ep.title || `Episode ${ep.episode}`,
-          season: ep.season,
-          episode: ep.episode,
-          number: ep.episode,
-          released: ep.released || fallbackDate,
-          thumbnail: series.background || series.poster,
-        };
-      });
-
-      return {
-        meta: {
-          id: args.id,
-          imdb_id: series.imdbId,
-          type: 'series' as const,
-          name: series.name,
-          poster: series.poster,
-          background: series.background,
-          logo: series.logo,
-          genres: series.genres || [series.genre],
-          description: series.description
-            ? `${series.description}\n\nOriginal TamilMV Series: ${series.rawText || series.name}`
-            : `Original TamilMV Series: ${series.rawText || series.name}`,
-          imdbRating: series.imdbRating,
-          releaseInfo: series.releaseInfo,
-          videos,
-        }
-      };
-    }
-  }
-
-  // For 'tt' IDs for movies, Stremio's default Cinemeta addon will handle it automatically.
+  // For 'tt' IDs, Stremio's default Cinemeta addon will handle it automatically.
   if (args.type === 'movie' && args.id.startsWith('tamilmv-')) {
     const movie = await getMovieById(args.id);
 
