@@ -5,7 +5,7 @@ import { EnrichedSeries } from '../models/series';
 
 const MANIFEST: Manifest = {
   id: 'org.tamilmv.recent',
-  version: '1.2.0',
+  version: '1.2.1',
   name: 'InMax',
   description: 'Trending Indian Movies with multi-language streams & Bigg Boss Series.',
   logo: 'https://cold-logic5.github.io/TMV_Stremio_Addon_img/InMax%20Logo4.png',
@@ -31,13 +31,21 @@ const MANIFEST: Manifest = {
       ],
     },
   ],
-  resources: ['catalog', 'stream', 'meta'],
+  resources: [
+    'catalog',
+    {
+      name: 'meta',
+      types: ['movie', 'series'],
+      idPrefixes: ['tt', 'tamilmv-'],
+    },
+    {
+      name: 'stream',
+      types: ['movie', 'series'],
+      idPrefixes: ['tt', 'tamilmv-'],
+    },
+  ],
   types: ['movie', 'series'],
   idPrefixes: ['tt', 'tamilmv-'],
-  stremioAddonsConfig: {
-    "issuer": "https://stremio-addons.net",
-    "signature": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..cRYD4CgiXYy97pB2a10sug.EGnamjOef66h3f9rFBdTarLsvequuRlT10-0tFIGqPRXiMUv7n_CY1ehgfS3nPN2xTLXwY1SlXehsjFh0PsCl6hN6Jz_BXc3gvtvB3TotC8GUgIyjiD0E3iPr4LK2eD1.Ht5wJLt9h-WFNnG2LUUOtw"
-  }
 };
 
 const builder = new addonBuilder(MANIFEST);
@@ -95,7 +103,7 @@ builder.defineCatalogHandler(async (args: any) => {
     }
 
     const metas = allSeries.map((s: EnrichedSeries) => ({
-      id: s.id,
+      id: s.imdbId || s.id,
       type: 'series' as const,
       name: s.name,
       poster: s.poster,
@@ -267,20 +275,27 @@ builder.defineMetaHandler(async (args: any) => {
   if (args.type === 'series') {
     const series = await getSeriesById(args.id);
     if (series) {
-      const videos = series.episodes.map((ep) => ({
-        id: `${args.id}:${ep.season}:${ep.episode}`,
-        title: ep.title || `Episode ${ep.episode}`,
-        name: ep.title || `Episode ${ep.episode}`,
-        season: ep.season,
-        episode: ep.episode,
-        number: ep.episode,
-        released: ep.released || undefined,
-        thumbnail: series.background || series.poster,
-      }));
+      const canonicalId = series.imdbId || args.id;
+      const baseTimestamp = Date.now();
+      const videos = series.episodes.map((ep) => {
+        const daysAgo = Math.max(0, series.episodes.length - ep.episode);
+        const fallbackDate = new Date(baseTimestamp - daysAgo * 86400000).toISOString();
+        return {
+          id: `${canonicalId}:${ep.season}:${ep.episode}`,
+          title: ep.title || `Episode ${ep.episode}`,
+          name: ep.title || `Episode ${ep.episode}`,
+          season: ep.season,
+          episode: ep.episode,
+          number: ep.episode,
+          released: ep.released || fallbackDate,
+          thumbnail: series.background || series.poster,
+        };
+      });
 
       return {
         meta: {
           id: args.id,
+          imdb_id: series.imdbId,
           type: 'series' as const,
           name: series.name,
           poster: series.poster,
