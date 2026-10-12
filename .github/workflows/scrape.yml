@@ -2,8 +2,8 @@ name: Daily TamilMV Scraper
 
 on:
   schedule:
-    # Run twice a day at 03:00 UTC and 15:00 UTC
-    - cron: '0 3,15 * * *'
+    # Run once a day at 03:00 UTC
+    - cron: '0 3 * * *'
   workflow_dispatch: # Allows manual trigger from GitHub UI
 
 permissions:
