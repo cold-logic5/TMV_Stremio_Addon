@@ -25,7 +25,9 @@ services:
           type: web
           property: host
       - key: DATA_URL
-        value: https://raw.githubusercontent.com/saraV97/TMV_Stremio_Addon/main/data/movies.json
+        value: https://raw.githubusercontent.com/cold-logic5/TMV_Stremio_Addon/main/data/movies.json
+      - key: SERIES_DATA_URL
+        value: https://raw.githubusercontent.com/cold-logic5/TMV_Stremio_Addon/main/data/series.json
       - key: DATA_REFRESH_MINUTES
         value: 15
       - key: TAMILMV_BASE_URL

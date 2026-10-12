@@ -17,7 +17,7 @@ flowchart TB
         Scraper["TamilMV Scraper (Mirror Failover + Regex Parser)"]
         Enricher["Cinemeta / IMDb Enricher (Fuzzy Matching)"]
         Health["Torrent Tracker Scraper (UDP BEP 15 & HTTP)"]
-        JSONOutput[("data/movies.json (Repository)")]
+        JSONOutput[("data/movies.json & data/series.json (Repository)")]
         GistOutput[("GitHub Gist (Optional)")]
         RedisOutput[("Redis Cache (Optional)")]
         
@@ -61,9 +61,11 @@ flowchart TB
 - **Sub-Millisecond Response Times**: Read queries (`/catalog`, `/stream`, `/meta`) require 0 database roundtrips and no external HTTP requests during user interaction.
 - **Keep-Alive Worker**: Pings itself (`/manifest.json`) every 10 minutes when deployed on free-tier container platforms (like Render.com) to prevent instance idling.
 - **Stremio Protocol Handlers**:
-  - `catalog`: Serves the `tamilmv-now` catalog with pagination (`skip`, `limit`) and language filters (`Tamil`, `Malayalam`, `Telugu`, `Kannada`, `Hindi`, `Multi-Lang`). Includes HTTP cache directives (`cacheMaxAge: 60`, `staleRevalidate: 30`, `staleError: 3600`).
-  - `stream`: Resolves streams for movie IDs. Parses `infoHash`, injects 30+ high-performance public UDP trackers, and formats titles with language, resolution, codec (HEVC/AVC), file size, and live seeders/leechers.
-  - `meta`: Serves metadata for custom `tamilmv-*` IDs (unmatched on IMDb). Standard `tt*` IDs defer metadata resolution to Stremio's native Cinemeta addon.
+  - `catalog`:
+    - `tamilmv-now` (`type: 'movie'`): Serves movies with pagination (`skip`, `limit`) and language filters (`Tamil`, `Malayalam`, `Telugu`, `Kannada`, `Hindi`, `Multi-Lang`).
+    - `tamilmv-series` (`type: 'series'`, name: `Big Boss`): Serves daily Bigg Boss episodes with genre filters (`Tamil`, `Telugu`).
+  - `stream`: Resolves streams for movie and series episode IDs (`<seriesId>:<season>:<episode>`). Parses `infoHash`, injects 30+ high-performance public UDP trackers, and formats titles with language, resolution, codec (HEVC/AVC), file size, and live seeders/leechers.
+  - `meta`: Serves full series episode trees (`videos` array) for Bigg Boss series (`tamilmv-series-bigg-boss-tamil`, `tamilmv-series-bigg-boss-telugu`, `tt7084920`, `tt7805494`) and custom movie `tamilmv-*` IDs. Standard `tt*` movie IDs defer metadata resolution to Stremio's native Cinemeta addon.
 
 ### 2.2 The Ingestion Pipeline (`src/scraper/tamilmv.ts`, `src/services/imdb.ts`, `src/services/torrent.ts`)
 - **Trigger**: Runs via automated scheduled GitHub Actions (`.github/workflows/scrape.yml`), manual workflow dispatch, external authenticated webhook (`/scrape?secret=...`), or manual CLI (`npm run scrape:once`).

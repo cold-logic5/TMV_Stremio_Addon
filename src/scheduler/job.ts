@@ -1,7 +1,9 @@
 import cron from 'node-cron';
 import { scrapeTamilMV } from '../scraper/tamilmv';
+import { scrapeBiggBossSeries } from '../scraper/series';
 import { enrichMoviesWithImdb } from '../services/imdb';
-import { saveMovies } from '../services/cache';
+import { enrichSeriesWithCinemeta } from '../services/seriesEnricher';
+import { saveMovies, saveSeries } from '../services/cache';
 import { config } from '../services/config';
 import { getBatchTorrentHealth } from '../services/torrent';
 
@@ -35,6 +37,37 @@ export async function runRefreshOnce(): Promise<void> {
     await saveMovies(enriched);
     // eslint-disable-next-line no-console
     console.log(`TamilMV enriched & saved count: ${enriched.length}`);
+
+    // 2. Scrape & enrich Bigg Boss Series (Tamil & Telugu)
+    try {
+        console.log('[Scheduler] Scraping Bigg Boss series...');
+        const scrapedSeries = await scrapeBiggBossSeries();
+        console.log(`[Scheduler] Bigg Boss series scraped count: ${scrapedSeries.length}`);
+
+        const enrichedSeries = await enrichSeriesWithCinemeta(scrapedSeries);
+
+        // Fetch torrent health for the latest 5 episodes of each series
+        console.log('[Scheduler] Fetching torrent health for latest Bigg Boss episodes...');
+        for (const s of enrichedSeries) {
+            const recentEpisodes = s.episodes.slice(-5);
+            for (const ep of recentEpisodes) {
+                await getBatchTorrentHealth(
+                    ep.qualities,
+                    (q) => q.url,
+                    (q, health) => {
+                        q.seeders = health.seeds;
+                        q.leechers = health.leechers;
+                    },
+                    5
+                );
+            }
+        }
+
+        await saveSeries(enrichedSeries);
+        console.log(`[Scheduler] Bigg Boss series enriched & saved count: ${enrichedSeries.length}`);
+    } catch (err: any) {
+        console.error('[Scheduler] Bigg Boss series refresh failed:', err.message);
+    }
 }
 
 export function scheduleDailyRefresh(): void {

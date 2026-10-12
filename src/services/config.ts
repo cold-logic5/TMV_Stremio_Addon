@@ -6,6 +6,7 @@ export const config = {
   port: parseInt(process.env.PORT ?? '7000', 10),
   redisUrl: process.env.REDIS_URL ?? '',
   dataUrl: process.env.DATA_URL ?? '',
+  seriesDataUrl: process.env.SERIES_DATA_URL ?? (process.env.DATA_URL ? process.env.DATA_URL.replace('movies.json', 'series.json') : ''),
   gistId: process.env.GIST_ID ?? process.env.GITHUB_GIST_ID ?? '',
   githubToken: process.env.GITHUB_TOKEN ?? '',
   dataRefreshMinutes: parseInt(process.env.DATA_REFRESH_MINUTES ?? '15', 10),
