@@ -13,7 +13,7 @@ const MANIFEST: Manifest = {
     {
       type: 'movie',
       id: 'tamilmv-now',
-      name: 'Tamilmv Recent',
+      name: 'Tamilmv Latest',
       extra: [
         { name: 'skip', isRequired: false },
         { name: 'limit', isRequired: false },
