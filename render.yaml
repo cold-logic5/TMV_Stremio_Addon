@@ -5,6 +5,17 @@ services:
     plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start
+    buildFilter:
+      paths:
+        - src/**
+        - package.json
+        - package-lock.json
+        - tsconfig.json
+        - render.yaml
+      ignoredPaths:
+        - data/**
+        - .github/**
+        - "*.md"
     envVars:
       - key: PORT
         value: 10000
