@@ -1,0 +1,14 @@
+# Caddy reverse proxy: automatic free HTTPS (Let's Encrypt) -> Node app on :7000
+# Stremio requires HTTPS for remote addons.
+#
+# Replace YOUR_DOMAIN with either:
+#   - a free DuckDNS name, e.g.  inmax.duckdns.org
+#   - or the sslip.io trick (no signup): <PUBLIC-IP-with-dashes>.sslip.io
+#         e.g. 129-151-10-20.sslip.io
+YOUR_DOMAIN {
+	encode gzip
+	reverse_proxy localhost:7000
+
+	# Allow Stremio clients (web/desktop/mobile) to call the addon
+	header Access-Control-Allow-Origin *
+}
