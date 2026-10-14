@@ -94,6 +94,11 @@ function populateInMemoryStore(movies: EnrichedMovie[]): void {
 export async function saveMovies(movies: EnrichedMovie[]): Promise<void> {
   console.log('[Cache] Saving movies count:', movies.length);
 
+  if (!movies || movies.length === 0) {
+    console.warn('[Cache] No movies to save! Skipping file write to protect existing catalog.');
+    return;
+  }
+
   // 1. Update in-memory store
   populateInMemoryStore(movies);
   const allMovies = Array.from(inMemoryMovies.values());
