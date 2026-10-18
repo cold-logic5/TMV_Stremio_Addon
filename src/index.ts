@@ -28,6 +28,14 @@ const app = express();
 // We use a query parameter secret to prevent abuse
 app.get('/scrape', (req: Request, res: Response) => {
   if (req.query.secret === 'MY_SUPER_SECRET_KEY') {
+    if (req.query.reload === 'true') {
+      initCache()
+        .then(() => console.log('[HTTP] Cache reloaded successfully via /scrape.'))
+        .catch((err) => console.error('[HTTP] Cache reload failed:', err));
+      res.status(200).send('Cache reload triggered.\n');
+      return;
+    }
+
     res.status(200).send('Scrape triggered in the background.\n');
 
     // Run the scrape in the background without making the HTTP request wait
@@ -38,7 +46,18 @@ app.get('/scrape', (req: Request, res: Response) => {
   }
 });
 
-// 2. Health check for Render.com
+// 2. Fast cache reload endpoint to re-sync data/movies.json from GitHub without running full scrape
+app.get('/reload', async (req: Request, res: Response) => {
+  try {
+    console.log('[HTTP] Manual cache reload triggered');
+    await initCache();
+    res.status(200).send('Cache reloaded from DATA_URL successfully.\n');
+  } catch (err: any) {
+    res.status(500).send(`Cache reload failed: ${err.message}\n`);
+  }
+});
+
+// 3. Health check for Render.com / monitoring
 app.get('/health', (req, res) => res.status(200).send('OK'));
 
 // Log all incoming requests to help debug Stremio connection

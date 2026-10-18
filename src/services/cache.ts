@@ -304,14 +304,14 @@ function setupPeriodicRefresh(): void {
 }
 
 export async function listMovieIds(): Promise<string[]> {
-  if (!isInitialized && inMemoryMovieIds.length === 0) {
+  if (!isInitialized || inMemoryMovieIds.length === 0) {
     await initCache();
   }
   return inMemoryMovieIds;
 }
 
 export async function getMovieById(id: string): Promise<EnrichedMovie | null> {
-  if (!isInitialized && inMemoryMovieIds.length === 0) {
+  if (!isInitialized || inMemoryMovieIds.length === 0) {
     await initCache();
   }
   return inMemoryMovies.get(id) ?? null;
@@ -319,7 +319,7 @@ export async function getMovieById(id: string): Promise<EnrichedMovie | null> {
 
 export async function getMoviesByIds(ids: string[]): Promise<EnrichedMovie[]> {
   if (!ids.length) return [];
-  if (!isInitialized && inMemoryMovieIds.length === 0) {
+  if (!isInitialized || inMemoryMovieIds.length === 0) {
     await initCache();
   }
 

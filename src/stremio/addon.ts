@@ -16,19 +16,13 @@ const MANIFEST: Manifest = {
       extra: [
         { name: 'skip', isRequired: false },
         { name: 'limit', isRequired: false },
-        // { name: 'genre', isRequired: false, options: ['All', 'Tamil', 'Malayalam', 'Telugu', 'Kannada', 'Hindi', 'Multi-Lang'] }
-        { name: 'genre', isRequired: false, options: ['Tamil', 'Malayalam', 'Telugu', 'Kannada', 'Hindi', 'Multi-Lang'] }
-
+        { name: 'genre', isRequired: false, options: ['Tamil', 'All', 'Malayalam', 'Telugu', 'Kannada', 'Hindi', 'Multi-Lang'] }
       ],
     },
   ],
   resources: ['catalog', 'stream', 'meta'],
   types: ['movie'],
   idPrefixes: ['tt', 'tamilmv-'],
-  stremioAddonsConfig: {
-    "issuer": "https://stremio-addons.net",
-    "signature": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..cRYD4CgiXYy97pB2a10sug.EGnamjOef66h3f9rFBdTarLsvequuRlT10-0tFIGqPRXiMUv7n_CY1ehgfS3nPN2xTLXwY1SlXehsjFh0PsCl6hN6Jz_BXc3gvtvB3TotC8GUgIyjiD0E3iPr4LK2eD1.Ht5wJLt9h-WFNnG2LUUOtw"
-  }
 };
 
 const builder = new addonBuilder(MANIFEST);
@@ -45,8 +39,7 @@ builder.defineCatalogHandler(async (args: any) => {
   const ids = await listMovieIds();
   let movies = await getMoviesByIds(ids);
 
-  // if (genre && genre !== 'All') {
-  if (genre) {
+  if (genre && genre !== 'All') {
     movies = movies.filter(m => m.languages && m.languages.includes(genre));
   }
 
